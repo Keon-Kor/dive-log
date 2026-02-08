@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Import FULL bundle for HEIC support in Node.js (default might be Lite)
-import exifr from 'exifr/dist/full.esm.mjs';
+import sharp from 'sharp';
+import exifr from 'exifr';
+
+// Force Node.js runtime (Vercel default is usually nodejs for APIs, but good to be explicit for Sharp)
+export const runtime = 'nodejs';
+// Increase body size limit if needed (Next.js default is 4MB, sufficient for photos? check config)
+// export const config = { api: { bodyParser: false } }; // We use formData(), so let Next handle it.
 
 export async function POST(request: NextRequest) {
     try {
@@ -11,43 +16,40 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
-        console.log(`[API] Extracting EXIF from: ${file.name} (${file.type}, ${file.size} bytes)`);
+        console.log(`[API v1.3.1] Extracting EXIF from: ${file.name} (${file.type}, ${file.size} bytes)`);
 
         // Convert File to ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        // Parse EXIF data using exifr in Node.js environment (more robust for HEIC)
-        const exif = await exifr.parse(buffer, {
+        // STRATEGY: Use Sharp to read metadata ONLY (Lightweight).
+        // Sharp uses libvips which parses HEIC/Exif efficiently without full image decoding.
+        const metadata = await sharp(buffer).metadata();
+
+        if (!metadata.exif) {
+            console.log('Sharp found no EXIF buffer');
+            return NextResponse.json({ error: 'No EXIF data found' }, { status: 404 });
+        }
+
+        // Parse the EXIF buffer using exifr
+        // exifr can parse raw EXIF buffers (TIFF segment)
+        const exif = await exifr.parse(metadata.exif, {
             tiff: true,
             exif: true,
             gps: true,
         });
 
         if (!exif) {
-            return NextResponse.json({ error: 'No EXIF data found' }, { status: 404 });
+            return NextResponse.json({ error: 'Failed to parse EXIF buffer' }, { status: 404 });
         }
 
         // Extract GPS coordinates
         let gpsLat: number | null = null;
         let gpsLng: number | null = null;
 
-        try {
-            // Need to pass buffer again for gps extraction if not found in first parse
-            // But exifr.parse with gps:true usually returns latitude/longitude in the result object
-            if (exif.latitude && exif.longitude) {
-                gpsLat = exif.latitude;
-                gpsLng = exif.longitude;
-            } else {
-                // Try dedicated GPS extraction if main parse didn't return it structured
-                const gps = await exifr.gps(buffer);
-                if (gps) {
-                    gpsLat = gps.latitude;
-                    gpsLng = gps.longitude;
-                }
-            }
-        } catch (gpsError) {
-            console.error('GPS specific extraction failed:', gpsError);
+        if (exif.latitude && exif.longitude) {
+            gpsLat = exif.latitude;
+            gpsLng = exif.longitude;
         }
 
         // Get date
