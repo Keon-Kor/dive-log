@@ -4,9 +4,11 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+// @ts-ignore
+import tz from 'tz-lookup';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.3.4';
+export const APP_VERSION = 'v1.3.8';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
 import { clientLogger } from '@/lib/clientLogger';
@@ -115,19 +117,98 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
 
         // Get date
         let dateTaken: string | null = null;
-        // Prioritize original date
-        const dateValue = exif.dateTaken || exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+        let timezone: string | null = null;
 
-        if (dateValue) {
+        // timezone lookup
+        if (gpsLat && gpsLng) {
             try {
-                dateTaken = new Date(dateValue).toISOString();
-            } catch {
-                logger.warn('Date parsing failed for:', dateValue);
+                timezone = tz(gpsLat, gpsLng);
+                logger.log('Timezone identified:', timezone);
+            } catch (e) {
+                logger.warn('Timezone lookup failed:', e);
+            }
+        }
+
+        // Prioritize original date
+        // Note: exif.DateTimeOriginal is usually "Camera Clock Time".
+        // If we have GPS timestamp (UTC), we could calculate exact local time,
+        // but often Camera Time is what users expect if they updated their clock.
+        // HOWEVER, if the user says "It shows invalid time (my home time)", it means
+        // the date object is being converted to browser time.
+        // We should store the "Date String" as is, OR strictly use GPS UTC.
+
+        // Strategy: Use GPS Date/Time if available (as UTC), then convert to Local Time of that location.
+        // If not, fall back to DateTimeOriginal (Camera Time).
+
+        const gpsDate = exif.GPSDateStamp; // "2023:01:01" or "2023-01-01"
+        const gpsTime = exif.GPSTimeStamp; // [h, m, s] or string
+
+        if (timezone && gpsDate && gpsTime) {
+            try {
+                // Parse GPS UTC time
+                // Format: YYYY:MM:DD and [H, M, S]
+                let year, month, day;
+                if (typeof gpsDate === 'string') {
+                    const parts = gpsDate.replace(/:/g, '-').split('-');
+                    year = parseInt(parts[0]);
+                    month = parseInt(parts[1]) - 1;
+                    day = parseInt(parts[2]);
+                }
+
+                let hour, minute, second;
+                if (Array.isArray(gpsTime)) {
+                    hour = gpsTime[0];
+                    minute = gpsTime[1];
+                    second = gpsTime[2];
+                } else if (typeof gpsTime === 'string') {
+                    const parts = gpsTime.split(':');
+                    hour = parseInt(parts[0]);
+                    minute = parseInt(parts[1]);
+                    second = parseInt(parts[2]);
+                }
+
+                if (year && hour !== undefined) {
+                    // Create UTC Date
+                    const utcDate = new Date(Date.UTC(year, month, day, hour, minute, second));
+
+                    // Convert to Target Timezone using native toLocaleString
+                    // sv-SE gives ISO-like format YYYY-MM-DD hh:mm:ss
+                    dateTaken = utcDate.toLocaleString('sv-SE', { timeZone: timezone }).replace(' ', 'T');
+                    logger.log('Date calculated from GPS UTC:', dateTaken, 'Timezone:', timezone);
+                }
+            } catch (e) {
+                logger.warn('GPS Time parsing failed:', e);
+            }
+        }
+
+        // Fallback to Wall Clock time (DateTimeOriginal)
+        if (!dateTaken) {
+            const dateValue = exif.dateTaken || exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+            if (dateValue) {
+                try {
+                    // Critical Fix: If it's a Date object, exifr might have already shifted it to browser timezone!
+                    // Convert it back to localized ISO string without using toISOString() which shifts to UTC.
+                    const d = new Date(dateValue);
+
+                    if (timezone) {
+                        // If we have timezone but GPS time was missing, 
+                        // attempt to show wall clock time as it appeared in the camera, 
+                        // but specifically NOT shifted by browser timezone.
+                        // sv-SE + timezone option is the most reliable way to say "treat this UTC-less date as TARGET-TZ local".
+                        dateTaken = d.toLocaleString('sv-SE', { timeZone: timezone }).replace(' ', 'T');
+                        logger.log('Date calculated from Wall Clock + Timezone:', dateTaken);
+                    } else {
+                        dateTaken = d.toLocaleString('sv-SE').replace(' ', 'T');
+                        logger.log('Date parsed from Wall Clock (Fallback to Browser TZ):', dateTaken);
+                    }
+                } catch {
+                    logger.warn('Date parsing failed for:', dateValue);
+                }
             }
         }
 
         const data: ExifData = {
-            dateTaken,
+            dateTaken, // Now strictly YYYY-MM-DDTHH:mm:ss (Wall Clock)
             gpsLat,
             gpsLng,
             camera: exif.camera || exif.Model || null,

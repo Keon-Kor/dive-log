@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DiveLog } from '@/lib/types';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // Fix for default marker icons in Next.js
 const defaultIcon = L.icon({
@@ -46,6 +47,7 @@ export function DiveMap({
   onMarkerClick,
   height = '400px'
 }: DiveMapProps) {
+  const { t } = useLanguage();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -113,7 +115,7 @@ export function DiveMap({
         if (log.maxDepth) {
           const pDepth = document.createElement('p');
           pDepth.className = 'text-sm';
-          pDepth.textContent = `최대 수심: ${log.maxDepth}m`;
+          pDepth.textContent = `${t('logDetail.maxDepth')}: ${log.maxDepth}m`;
           popupEl.appendChild(pDepth);
         }
 
@@ -197,22 +199,28 @@ export function DiveMap({
         }
         
         .leaflet-popup-content-wrapper {
-          background: #1e293b;
-          color: white;
-          border-radius: 12px;
-          border: 1px solid #334155;
+          background: var(--surface) !important;
+          color: white !important;
+          border-radius: 16px !important;
+          border: 1px solid var(--border-color) !important;
+          box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5) !important;
         }
         
         .leaflet-popup-tip {
-          background: #1e293b;
+          background: var(--surface) !important;
+          border: 1px solid var(--border-color) !important;
+          border-top: none;
+          border-left: none;
         }
         
         .dive-popup h4 {
           margin: 0 0 4px 0;
+          font-size: 16px;
         }
         
         .dive-popup p {
           margin: 2px 0;
+          color: var(--text-secondary);
         }
       `}</style>
     </div>

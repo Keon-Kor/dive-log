@@ -85,12 +85,70 @@ export async function POST(request: NextRequest) {
         }
 
         let dateTaken: string | null = null;
-        const dateValue = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
-        if (dateValue) {
+        let timezone: string | null = null;
+
+        // Timezone Lookup
+        if (gpsLat && gpsLng) {
             try {
-                dateTaken = new Date(dateValue).toISOString();
-            } catch {
-                console.log('Date parsing failed:', dateValue);
+                const tz = require('tz-lookup');
+                timezone = tz(gpsLat, gpsLng);
+                console.log(`[API] Timezone lookup: ${timezone}`);
+            } catch (e) {
+                console.warn('[API] Timezone lookup failed:', e);
+            }
+        }
+
+        // GPS UTC -> Local Time conversion
+        const gpsDate = exif.GPSDateStamp;
+        const gpsTime = exif.GPSTimeStamp;
+
+        if (timezone && gpsDate && gpsTime) {
+            try {
+                let year, month, day;
+                if (typeof gpsDate === 'string') {
+                    const parts = gpsDate.replace(/:/g, '-').split('-');
+                    year = parseInt(parts[0]);
+                    month = parseInt(parts[1]) - 1;
+                    day = parseInt(parts[2]);
+                }
+
+                let hour, minute, second;
+                if (Array.isArray(gpsTime)) {
+                    hour = gpsTime[0];
+                    minute = gpsTime[1];
+                    second = gpsTime[2];
+                } else if (typeof gpsTime === 'string') {
+                    const parts = gpsTime.split(':');
+                    hour = parseInt(parts[0]);
+                    minute = parseInt(parts[1]);
+                    second = parseInt(parts[2]);
+                }
+
+                if (year && hour !== undefined) {
+                    const utcDate = new Date(Date.UTC(year, month, day, hour, minute, second));
+                    // Wall Clock ISO: YYYY-MM-DDTHH:mm:ss
+                    dateTaken = utcDate.toLocaleString('sv-SE', { timeZone: timezone }).replace(' ', 'T');
+                    console.log(`[API] Date from GPS UTC: ${dateTaken}`);
+                }
+            } catch (e) {
+                console.warn('[API] GPS Time parsing failed:', e);
+            }
+        }
+
+        // Fallback to Wall Clock time (DateTimeOriginal)
+        if (!dateTaken) {
+            const dateValue = exif.dateTaken || exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+            if (dateValue) {
+                try {
+                    // Critical Fix: Do NOT use .toISOString()!
+                    // If it's a string from EXIF, it's already "wall clock".
+                    // If it's a Date object, .toLocaleString('sv-SE') gives wall clock.
+                    const d = new Date(dateValue);
+                    dateTaken = d.toLocaleString('sv-SE').replace(' ', 'T');
+                    console.log(`[API] Date from fallback: ${dateTaken}`);
+                } catch {
+                    console.log('[API] Date parsing failed for:', dateValue);
+                }
             }
         }
 

@@ -4,6 +4,7 @@
 'use client';
 
 import { DiveLog } from '@/lib/types';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface LogCardProps {
     log: DiveLog;
@@ -11,12 +12,13 @@ interface LogCardProps {
 }
 
 export function LogCard({ log, onClick }: LogCardProps) {
+    const { t, language } = useLanguage();
     // Format date for display
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
-        return new Intl.DateTimeFormat('ko-KR', {
+        return new Intl.DateTimeFormat(language === 'ko' ? 'ko-KR' : 'en-US', {
             year: 'numeric',
-            month: 'long',
+            month: language === 'ko' ? 'long' : 'short',
             day: 'numeric',
         }).format(date);
     };
@@ -38,84 +40,82 @@ export function LogCard({ log, onClick }: LogCardProps) {
         );
     };
 
+
     return (
         <div
             onClick={onClick}
             className={`
-        group bg-gradient-to-br from-slate-800 to-slate-900 
-        rounded-2xl overflow-hidden border border-slate-700
-        hover:border-cyan-500/50 transition-all duration-300
-        hover:shadow-lg hover:shadow-cyan-500/10
+        group card-toss p-0 overflow-hidden border-none
+        hover:scale-[1.02] active:scale-[0.98] transition-all duration-300
         ${onClick ? 'cursor-pointer' : ''}
       `}
         >
             {/* Photo Strip */}
             {log.photos && log.photos.length > 0 && (
-                <div className="h-32 overflow-hidden relative">
+                <div className="h-40 overflow-hidden relative">
                     <img
                         src={log.photos[0].thumbnailUrl}
                         alt={log.diveSiteName}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     {log.photos.length > 1 && (
-                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full text-xs text-white">
+                        <div className="absolute bottom-3 right-3 bg-black/40 backdrop-blur-md px-2 py-1 rounded-lg text-xs text-white font-medium border border-white/10">
                             +{log.photos.length - 1}
                         </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-toss-bg/60 via-transparent to-transparent" />
                 </div>
             )}
 
             {/* Content */}
-            <div className="p-4 space-y-3">
+            <div className="p-5 space-y-3">
                 {/* Location & Date */}
                 <div>
-                    <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors">
+                    <h3 className="text-h3 text-white group-hover:text-toss-blue transition-colors truncate">
                         {log.diveSiteName || 'Unknown Location'}
                     </h3>
-                    <p className="text-sm text-slate-400 mt-0.5">
+                    <p className="text-sm text-toss-grey-500 mt-1">
                         {formatDate(log.date)}
                     </p>
                 </div>
 
                 {/* Stats */}
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm font-medium">
                     {log.maxDepth && (
-                        <div className="flex items-center gap-1.5 text-slate-300">
-                            <span className="text-cyan-400">↓</span>
+                        <div className="flex items-center gap-1.5 text-toss-grey-300">
+                            <span className="text-toss-blue">↓</span>
                             <span>{log.maxDepth}m</span>
                         </div>
                     )}
                     {log.divingTime && (
-                        <div className="flex items-center gap-1.5 text-slate-300">
-                            <span className="text-cyan-400">⏱</span>
-                            <span>{log.divingTime}분</span>
+                        <div className="flex items-center gap-1.5 text-toss-grey-300">
+                            <span className="text-toss-blue">⏱</span>
+                            <span>{log.divingTime} {t('logCard.min')}</span>
                         </div>
                     )}
                     {log.tempAvg && log.tempAvg > 0 && (
-                        <div className="flex items-center gap-1.5 text-slate-300">
-                            <span className="text-cyan-400">🌊</span>
+                        <div className="flex items-center gap-1.5 text-toss-grey-300">
+                            <span className="text-toss-blue">🌊</span>
                             <span>{Math.round(log.tempAvg)}°C</span>
                         </div>
                     )}
                 </div>
 
-                {/* Buddy */}
-                <div className="flex items-center justify-end">
-                    {log.buddy && (
-                        <span className="text-xs text-slate-500">
-                            with {log.buddy}
-                        </span>
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                    {/* Buddy */}
+                    <div className="text-xs text-toss-grey-500 truncate max-w-[150px]">
+                        {log.buddy && `${t('logCard.with')} ${log.buddy}`}
+                    </div>
+
+                    {/* Sync Status */}
+                    {!log.isSynced && (
+                        <div className="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                            {t('logCard.unsynced')}
+                        </div>
                     )}
                 </div>
-
-                {/* Sync Status */}
-                {!log.isSynced && (
-                    <div className="flex items-center gap-1.5 text-xs text-amber-400">
-                        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-                        동기화 대기 중
-                    </div>
-                )}
             </div>
         </div>
     );

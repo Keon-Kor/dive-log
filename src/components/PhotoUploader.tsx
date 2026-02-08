@@ -7,6 +7,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useExifExtractor } from '@/hooks/useExifExtractor';
 import type { ExifResult } from '@/workers/exif-worker';
 import { clientLogger } from '@/lib/clientLogger';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface PhotoUploaderProps {
     onPhotosProcessed: (results: ExifResult[], files: File[], savePhotos: boolean) => void;
@@ -23,13 +24,14 @@ export function PhotoUploader({
     isLoggedIn = false,
     onLoginClick
 }: PhotoUploaderProps) {
+    const { t, language } = useLanguage();
     const [phase, setPhase] = useState<Phase>('upload');
     const [isDragging, setIsDragging] = useState(false);
     const [previewUrls, setPreviewUrls] = useState<string[]>([]);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [extractedResults, setExtractedResults] = useState<ExifResult[]>([]);
     const [savePhotos, setSavePhotos] = useState(false); // Default OFF
-    const [allowGps, setAllowGps] = useState(false); // Default OFF (Privacy Opt-in)
+    const [allowGps, setAllowGps] = useState(true); // Default ON (Implied Consent)
     const [isProcessingPreviews, setIsProcessingPreviews] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { extractFromFiles, isExtracting, progress, error } = useExifExtractor({
@@ -57,7 +59,7 @@ export function PhotoUploader({
                     const result = await heic2any({
                         blob: file,
                         toType: 'image/jpeg',
-                        quality: 0.5
+                        quality: 0.3
                     });
 
                     // Handle potential array result
@@ -172,8 +174,8 @@ export function PhotoUploader({
     const formatDate = (dateStr: string) => {
         try {
             const date = new Date(dateStr);
-            return date.toLocaleDateString('ko-KR', {
-                year: 'numeric', month: 'long', day: 'numeric',
+            return date.toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', {
+                year: 'numeric', month: language === 'ko' ? 'long' : 'short', day: 'numeric',
                 weekday: 'short'
             });
         } catch {
@@ -184,11 +186,11 @@ export function PhotoUploader({
     const formatTime = (dateStr: string) => {
         try {
             const date = new Date(dateStr);
-            const timeStr = date.toLocaleTimeString('ko-KR', {
+            const timeStr = date.toLocaleTimeString(language === 'ko' ? 'ko-KR' : 'en-US', {
                 hour: '2-digit', minute: '2-digit',
                 hour12: true
             });
-            return `${timeStr} (현지 시간)`;
+            return `${timeStr} (${t('photoUploader.localTimeLabel') || 'Local Time'})`;
         } catch {
             return '';
         }
@@ -206,10 +208,10 @@ export function PhotoUploader({
                     <span className="text-xl">📍</span>
                     <div>
                         <p className="text-sm text-cyan-300 font-medium">
-                            사진의 위치와 시간 정보만 추출합니다
+                            {t('photoUploader.autoAnalyze')}
                         </p>
                         <p className="text-xs text-slate-400 mt-1">
-                            사진은 기본적으로 저장되지 않으며, 메타데이터만 로그에 사용됩니다
+                            {t('photoUploader.analyzeSub')}
                         </p>
                     </div>
                 </div>
@@ -249,7 +251,7 @@ export function PhotoUploader({
                                     </svg>
                                 </div>
                                 <p className="text-cyan-400 font-medium">
-                                    {isProcessingPreviews ? '미리보기 생성 중...' : '사진 분석 중...'}
+                                    {isProcessingPreviews ? t('photoUploader.generatingPreviews') : t('photoUploader.analyzing')}
                                 </p>
                                 <div className="w-full bg-slate-700 rounded-full h-2">
                                     <div
@@ -257,7 +259,7 @@ export function PhotoUploader({
                                         style={{ width: `${progress}%` }}
                                     />
                                 </div>
-                                <p className="text-slate-400 text-sm">{Math.round(progress)}% 완료</p>
+                                <p className="text-slate-400 text-sm">{Math.round(progress)}% {t('photoUploader.complete')}</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
@@ -267,46 +269,12 @@ export function PhotoUploader({
                                     </svg>
                                 </div>
                                 <div>
-                                    <p className="text-lg font-semibold text-white">다이빙 사진을 업로드하세요</p>
-                                    <p className="text-slate-400 text-sm mt-1">드래그 앤 드롭 또는 클릭하여 선택</p>
+                                    <p className="text-lg font-semibold text-white">{t('photoUploader.header')}</p>
+                                    <p className="text-slate-400 text-sm mt-1">{t('logNew.photoUploadSub')}</p>
                                 </div>
-                                <p className="text-xs text-slate-500">JPEG, PNG, HEIC 지원 • 최대 {MAX_PHOTOS}장</p>
+                                <p className="text-xs text-slate-500">{t('logNew.photoUploadLimit')}</p>
                             </div>
                         )}
-                    </div>
-
-                    {/* GPS Consent Checkbox */}
-                    <div
-                        className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            const newAllowGps = !allowGps;
-                            setAllowGps(newAllowGps);
-
-                            // Re-extract if files are already selected to apply new GPS setting
-                            if (selectedFiles.length > 0) {
-                                // We need to use the functional update or a useEffect, but since we are inside an event handler,
-                                // we can't easily force the hook to update immediately and return a new function.
-                                // HOWEVER, useExifExtractor depends on 'finalConfig' which depends on 'allowGps'.
-                                // So simply updating the state will trigger the hook's effect IF the hook uses it.
-                                // BUT extractFromFiles is a useCallback dependent on finalConfig.
-                                // So we need to call the *new* extractFromFiles. 
-                                // Actually, standard React way: utilize useEffect to react to allowGps change? 
-                                // No, that might trigger unwanted runs.
-                                // Better: Just set state, and let a useEffect handle the re-run if phase is 'preview'.
-                            }
-                        }}
-                    >
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${allowGps ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>
-                            {allowGps && (
-                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                            )}
-                        </div>
-                        <div className="text-sm text-slate-300 select-none">
-                            사진의 위치 정보(GPS) 수집에 동의합니다 <span className="text-slate-500 text-xs">(선택)</span>
-                        </div>
                     </div>
 
                     {error && (
@@ -334,7 +302,7 @@ export function PhotoUploader({
                                 )}
                                 {index === 0 && (
                                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-cyan-500/80 rounded-full text-xs text-white">
-                                        최신
+                                        {t('photoUploader.latest')}
                                     </div>
                                 )}
                             </div>
@@ -344,7 +312,7 @@ export function PhotoUploader({
                     {/* Extracted Metadata Card */}
                     <div className="p-5 bg-slate-800/70 border border-slate-700 rounded-2xl space-y-4">
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                            📋 추출된 메타데이터
+                            📋 {t('photoUploader.extractedTitle')}
                         </h3>
 
                         {latestResult?.data ? (
@@ -352,7 +320,7 @@ export function PhotoUploader({
                                 {/* Date */}
                                 {latestResult.data.dateTaken && (
                                     <div className="bg-slate-700/50 p-3 rounded-xl">
-                                        <p className="text-xs text-slate-400 mb-1">📅 촬영 날짜</p>
+                                        <p className="text-xs text-slate-400 mb-1">📅 {t('photoUploader.date')}</p>
                                         <p className="text-white font-medium">
                                             {formatDate(latestResult.data.dateTaken)}
                                         </p>
@@ -362,7 +330,7 @@ export function PhotoUploader({
                                 {/* Time */}
                                 {latestResult.data.dateTaken && (
                                     <div className="bg-slate-700/50 p-3 rounded-xl">
-                                        <p className="text-xs text-slate-400 mb-1">⏰ 촬영 시간</p>
+                                        <p className="text-xs text-slate-400 mb-1">⏰ {t('photoUploader.time')}</p>
                                         <p className="text-white font-medium">
                                             {formatTime(latestResult.data.dateTaken)}
                                         </p>
@@ -372,35 +340,35 @@ export function PhotoUploader({
                                 {/* GPS */}
                                 {hasGPS ? (
                                     <div className="col-span-2 bg-green-500/10 border border-green-500/30 p-3 rounded-xl">
-                                        <p className="text-xs text-green-400 mb-1">📍 GPS 위치 정보</p>
+                                        <p className="text-xs text-green-400 mb-1">📍 {t('photoUploader.gps')}</p>
                                         <p className="text-white font-medium">
                                             {latestResult.data.gpsLat?.toFixed(4)}°, {latestResult.data.gpsLng?.toFixed(4)}°
                                         </p>
                                         <p className="text-xs text-slate-400 mt-1">
-                                            다이빙 사이트 자동 매칭에 사용됩니다
+                                            {t('photoUploader.gpsUsedFor')}
                                         </p>
                                     </div>
                                 ) : (
                                     <div className="col-span-2 bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-xl">
-                                        <p className="text-xs text-yellow-400 mb-1">📍 GPS 정보 없음</p>
+                                        <p className="text-xs text-yellow-400 mb-1">📍 {t('photoUploader.noGps')}</p>
                                         <p className="text-sm text-slate-300">
-                                            사진에 위치 정보가 없습니다. 다이빙 사이트를 직접 입력해주세요.
+                                            {t('photoUploader.noGpsSub')}
                                         </p>
                                     </div>
                                 )}
                             </div>
                         ) : (
                             <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl">
-                                <p className="text-yellow-400 font-medium">⚠️ 메타데이터를 찾을 수 없습니다</p>
+                                <p className="text-yellow-400 font-medium">⚠️ {t('photoUploader.noMetadata')}</p>
                                 <p className="text-sm text-slate-400 mt-1">
-                                    사진에서 EXIF 데이터를 추출할 수 없습니다. 정보를 직접 입력해주세요.
+                                    {t('photoUploader.noMetadataSub')}
                                 </p>
                             </div>
                         )}
 
                         {/* Photo count info */}
                         <p className="text-xs text-slate-500 text-center">
-                            {extractedResults.length}장의 사진에서 정보를 추출했습니다
+                            {t('photoUploader.photoCountInfo').replace('{count}', extractedResults.length.toString())}
                         </p>
                     </div>
 
@@ -411,11 +379,11 @@ export function PhotoUploader({
                     >
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-white text-sm font-medium">📷 로그북에 사진도 함께 저장하기</p>
+                                <p className="text-white text-sm font-medium">📷 {t('photoUploader.savePhotos')}</p>
                                 <p className="text-xs text-slate-400 mt-0.5">
                                     {isLoggedIn
-                                        ? "로그북과 함께 압축된 사진을 저장합니다"
-                                        : "로그인이 필요합니다 (클릭하여 로그인)"
+                                        ? t('photoUploader.savePhotosSub')
+                                        : t('photoUploader.loginRequired')
                                     }
                                 </p>
                             </div>
@@ -436,19 +404,26 @@ export function PhotoUploader({
                         </div>
                     </div>
 
+                    {/* Implied Consent Notice */}
+                    <div className="text-center">
+                        <p className="text-xs text-slate-500">
+                            {t('photoUploader.privacyConsent')}
+                        </p>
+                    </div>
+
                     {/* Action Buttons */}
                     <div className="flex gap-3">
                         <button
                             onClick={handleCancel}
-                            className="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                            className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors text-lg"
                         >
-                            다시 선택
+                            {t('photoUploader.reselect')}
                         </button>
                         <button
                             onClick={handleConfirm}
-                            className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors"
+                            className="flex-1 py-4 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors text-lg"
                         >
-                            이 정보로 진행 →
+                            {t('photoUploader.proceed')}
                         </button>
                     </div>
                 </div>

@@ -8,12 +8,14 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+
+import { findNearestDiveSite, findDiveSitesNearby, type DiveSite, type MatchResult } from '@/lib/dive-sites';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { LoginButton } from '@/components/LoginButton';
 import { useDiveLog } from '@/hooks/useDiveLog';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_VERSION, type ExifResult } from '@/hooks/useExifExtractor';
-import { findNearestDiveSite, type DiveSite } from '@/lib/dive-sites';
+import { useLanguage } from '@/contexts/LanguageContext';
 import type { DiveLogFormData, WeatherIcon, EntryMethod, TankMaterial, TankConfig, GasMix } from '@/lib/types';
 
 type Step = 1 | 2 | 3 | 4; // 4 = complete
@@ -31,6 +33,7 @@ export default function NewLogPage() {
     const router = useRouter();
     const { createLog } = useDiveLog();
     const { isLoggedIn, user, signInWithGoogle } = useAuth();
+    const { t } = useLanguage();
     const [step, setStep] = useState<Step>(1);
     const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
     const [savePhotos, setSavePhotos] = useState(false);
@@ -38,7 +41,8 @@ export default function NewLogPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [shareUrlCopied, setShareUrlCopied] = useState(false);
     const [matchedSite, setMatchedSite] = useState<DiveSite | null>(null);
-    const [siteSuggestions, setSiteSuggestions] = useState<DiveSite[]>([]);
+    const [siteSuggestions, setSiteSuggestions] = useState<MatchResult[]>([]);
+    const [showSiteSelector, setShowSiteSelector] = useState(false);
 
     // Form State - Step 2 (Common/Shareable)
     const [commonData, setCommonData] = useState({
@@ -93,15 +97,48 @@ export default function NewLogPage() {
     });
 
     // Step 1: Handle photos processed
+    const fetchWeatherData = async (lat: number, lng: number) => {
+        try {
+            const response = await fetch(`/api/weather?lat=${lat}&lng=${lng}`);
+            if (!response.ok) throw new Error('Weather fetch failed');
+            const data = await response.json();
+
+            // Map weather condition to icon
+            const mapConditionToIcon = (condition: string): WeatherIcon => {
+                const c = condition.toLowerCase();
+                if (c.includes('clear')) return 'sunny';
+                if (c.includes('cloud')) {
+                    if (c.includes('partly')) return 'partly_cloudy';
+                    return 'cloudy';
+                }
+                if (c.includes('rain') || c.includes('drizzle')) return 'rainy';
+                if (c.includes('storm')) return 'stormy';
+                if (c.includes('snow')) return 'snowy';
+                return 'sunny'; // Default
+            };
+
+            setCommonData(prev => ({
+                ...prev,
+                weather: mapConditionToIcon(data.condition),
+                tempAvg: data.airTemperature,
+                tempMin: data.airTemperature - 2,
+                tempMax: data.airTemperature + 2,
+                wind: `${data.windSpeed}m/s`,
+                visibility: data.visibility ? parseInt(data.visibility) : prev.visibility,
+            }));
+        } catch (error) {
+            console.error('Failed to fetch weather data:', error);
+        }
+    };
+
     const handlePhotosProcessed = useCallback((results: ExifResult[], files: File[], shouldSavePhotos: boolean) => {
         setSavePhotos(shouldSavePhotos);
 
         if (results.length > 0) {
-            // Results are already sorted with latest first
             const latestResult = results[0];
             const oldestResult = results[results.length - 1];
 
-            // Calculate diving time from oldest to latest
+            // ... divingTime calculation remains same ...
             let divingTime = 45;
             if (latestResult.data?.dateTaken && oldestResult.data?.dateTaken) {
                 const start = new Date(oldestResult.data.dateTaken);
@@ -109,16 +146,15 @@ export default function NewLogPage() {
                 divingTime = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60)));
             }
 
-            // Use LATEST photo's date/time/location
             const extracted: ExtractedData = {
                 date: latestResult.data?.dateTaken
-                    ? new Date(latestResult.data.dateTaken).toISOString().split('T')[0]
+                    ? latestResult.data.dateTaken.split('T')[0]
                     : new Date().toISOString().split('T')[0],
                 timeStart: oldestResult.data?.dateTaken
-                    ? new Date(oldestResult.data.dateTaken).toTimeString().slice(0, 5)
+                    ? oldestResult.data.dateTaken.split('T')[1]?.slice(0, 5) || ''
                     : '',
                 timeEnd: latestResult.data?.dateTaken
-                    ? new Date(latestResult.data.dateTaken).toTimeString().slice(0, 5)
+                    ? latestResult.data.dateTaken.split('T')[1]?.slice(0, 5) || ''
                     : '',
                 gpsLat: latestResult.data?.gpsLat ?? undefined,
                 gpsLng: latestResult.data?.gpsLng ?? undefined,
@@ -127,24 +163,31 @@ export default function NewLogPage() {
 
             setExtractedData(extracted);
 
-            // Auto-match dive site from GPS
+            // Auto-match Logic Updated
             let autoMatchedSite: DiveSite | null = null;
             if (extracted.gpsLat && extracted.gpsLng) {
-                const matchResult = findNearestDiveSite(extracted.gpsLat, extracted.gpsLng, 10000); // 10km radius
-                if (matchResult) {
-                    autoMatchedSite = matchResult.site;
-                    setMatchedSite(matchResult.site);
+                // Search for sites within 10km
+                const matches = findDiveSitesNearby(extracted.gpsLat, extracted.gpsLng, 10000);
+
+                if (matches.length > 0) {
+                    setSiteSuggestions(matches);
+                    autoMatchedSite = matches[0].site; // Pick closest by default
+                    setMatchedSite(matches[0].site);
+                } else {
+                    setSiteSuggestions([]);
+                    setMatchedSite(null);
                 }
+
+                // Fetch weather data
+                fetchWeatherData(extracted.gpsLat, extracted.gpsLng);
             }
 
-            // Pre-fill common data
             setCommonData(prev => ({
                 ...prev,
                 date: extracted.date,
                 timeStart: extracted.timeStart,
                 timeEnd: extracted.timeEnd,
                 divingTime: extracted.divingTime,
-                // Auto-fill from matched site
                 diveSiteName: autoMatchedSite?.name || '',
                 country: autoMatchedSite?.country || '',
             }));
@@ -221,117 +264,153 @@ export default function NewLogPage() {
         setTimeout(() => setShareUrlCopied(false), 2000);
     };
 
-    const stepTitles = {
-        1: '사진 업로드',
-        2: '다이빙 정보',
-        3: '개인 정보',
-        4: '완료!',
+    const handleSelectSite = (site: DiveSite) => {
+        setMatchedSite(site);
+        setCommonData(prev => ({
+            ...prev,
+            diveSiteName: site.name,
+            country: site.country,
+        }));
+        setShowSiteSelector(false);
     };
 
     return (
         <div className="min-h-screen pb-8">
             {/* Header */}
-            <header className="sticky top-0 z-50 glass">
-                <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
-                    <Link
-                        href="/"
-                        className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors"
-                    >
-                        <svg className="w-5 h-5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+                <div className="max-w-screen-xl mx-auto px-4 h-14 flex items-center justify-between">
+                    <Link href="/" className="p-2 -ml-2 text-slate-400 hover:text-white transition-colors">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                     </Link>
-                    <div>
-                        <h1 className="text-lg font-semibold text-white">새 다이빙 로그</h1>
-                        <p className="text-xs text-slate-400">
-                            {step}단계: {stepTitles[step]}
-                        </p>
-                    </div>
+                    <h1 className="text-lg font-bold text-white">
+                        {step === 1 ? t('logNew.step1Title') :
+                            step === 2 ? t('logNew.step2Title') :
+                                step === 3 ? t('logNew.step3Title') : t('logNew.successTitle')}
+                    </h1>
+                    <div className="w-10" /> {/* Spacer for centering */}
                 </div>
             </header>
-
-            {/* Progress Bar */}
-            <div className="max-w-2xl mx-auto px-4 py-4">
-                <div className="flex gap-2">
-                    {[1, 2, 3, 4].map((s) => (
-                        <div
-                            key={s}
-                            className={`h-1.5 flex-1 rounded-full transition-colors ${step >= s
-                                ? 'bg-gradient-to-r from-cyan-500 to-blue-500'
-                                : 'bg-slate-700'
-                                }`}
-                        />
-                    ))}
-                </div>
-            </div>
 
             <main className="max-w-2xl mx-auto px-4">
                 {/* Step 1: Photo Upload */}
                 {step === 1 && (
                     <div className="animate-fade-in space-y-6">
+                        <div className="text-center mb-6">
+                            <h1 className="text-2xl font-bold text-white mb-2">
+                                {t('logNew.newDiveLog')}
+                            </h1>
+                            <p className="text-slate-400">
+                                {t('logNew.step1Sub')}
+                            </p>
+                        </div>
+
                         <PhotoUploader
                             onPhotosProcessed={handlePhotosProcessed}
                             isLoggedIn={isLoggedIn}
                             onLoginClick={signInWithGoogle}
                         />
 
-                        <div className="text-center">
+                        <div className="mt-8 pt-8 border-t border-slate-700/50 text-center">
                             <button
                                 onClick={handleSkipPhotos}
-                                className="text-sm text-slate-400 hover:text-white transition-colors underline"
+                                className="text-slate-500 hover:text-slate-400 text-sm underline underline-offset-4 transition-colors"
                             >
-                                사진 없이 직접 작성하기
+                                {t('logNew.skipPhotos')}
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Step 2: Common Info (Shareable) */}
+                {/* Step 2: Common Info */}
                 {step === 2 && (
                     <div className="animate-fade-in space-y-6">
                         <div className="text-center mb-6">
                             <p className="text-sm text-slate-400">
-                                🌊 다른 다이버와 공유할 수 있는 정보입니다
+                                {t('logNew.step2Sub')}
                             </p>
                         </div>
 
-                        {/* Auto-matched Site Banner */}
+                        {/* Matched Site Banner & Selector */}
                         {matchedSite && (
-                            <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-xl">📍</span>
-                                    <div>
-                                        <p className="text-sm text-green-300 font-medium">
-                                            GPS 기반 자동 매칭됨
-                                        </p>
-                                        <p className="text-lg text-white font-semibold">
-                                            {matchedSite.name} {matchedSite.nameLocal && `(${matchedSite.nameLocal})`}
-                                        </p>
-                                        <p className="text-xs text-slate-400">
-                                            {matchedSite.region}, {matchedSite.country}
-                                        </p>
+                            <div className="space-y-3">
+                                <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl relative overflow-hidden">
+                                    <div className="flex items-center gap-3 relative z-10">
+                                        <span className="text-2xl">PD</span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-green-400 font-medium mb-0.5">
+                                                {t('logNew.matchedSiteTitle')}
+                                            </p>
+                                            <p className="text-lg text-white font-semibold truncate">
+                                                {matchedSite.name}
+                                            </p>
+                                            <p className="text-xs text-slate-400 truncate">
+                                                {matchedSite.region}, {matchedSite.country}
+                                            </p>
+                                        </div>
+
+                                        {siteSuggestions.length > 1 && (
+                                            <button
+                                                onClick={() => setShowSiteSelector(!showSiteSelector)}
+                                                className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-300 text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
+                                            >
+                                                {t('logNew.changeSite')}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* Site Selector Dropdown */}
+                                {showSiteSelector && siteSuggestions.length > 1 && (
+                                    <div className="animate-fade-in bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+                                        <div className="p-3 bg-slate-750 border-b border-slate-700">
+                                            <p className="text-xs text-slate-400">{t('logNew.nearbySites')}</p>
+                                        </div>
+                                        <div className="max-h-60 overflow-y-auto">
+                                            {siteSuggestions.map((match) => (
+                                                <button
+                                                    key={match.site.id}
+                                                    onClick={() => handleSelectSite(match.site)}
+                                                    className={`w-full p-3 text-left hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center justify-between ${matchedSite.id === match.site.id ? 'bg-slate-700/50' : ''
+                                                        }`}
+                                                >
+                                                    <div>
+                                                        <p className={`font-medium ${matchedSite.id === match.site.id ? 'text-green-400' : 'text-white'}`}>
+                                                            {match.site.name}
+                                                        </p>
+                                                        <p className="text-xs text-slate-500">
+                                                            {(match.distance / 1000).toFixed(1)}km • {match.site.region}
+                                                        </p>
+                                                    </div>
+                                                    {matchedSite.id === match.site.id && (
+                                                        <span className="text-green-400 text-sm">✓</span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* Diving Site */}
+                        {/* Diving Site Form */}
                         <section className="logbook-section">
-                            <h2 className="section-title">🏝️ Diving Site</h2>
-                            <div className="grid grid-cols-2 gap-4">
+                            <h2 className="section-title">{t('logNew.sectionSite')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="col-span-2">
-                                    <label className="field-label">사이트명</label>
+                                    <label className="field-label">{t('logNew.siteName')}</label>
                                     <input
                                         type="text"
                                         value={commonData.diveSiteName}
                                         onChange={e => setCommonData({ ...commonData, diveSiteName: e.target.value })}
                                         className="field-input text-lg font-semibold"
-                                        placeholder="다이빙 사이트 이름"
+                                        placeholder={t('logNew.sitePlaceholder')}
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">날짜</label>
+                                    <label className="field-label">{t('logNew.date')}</label>
                                     <input
                                         type="date"
                                         value={commonData.date}
@@ -341,13 +420,13 @@ export default function NewLogPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">국가</label>
+                                    <label className="field-label">{t('logNew.country')}</label>
                                     <input
                                         type="text"
                                         value={commonData.country}
                                         onChange={e => setCommonData({ ...commonData, country: e.target.value })}
                                         className="field-input"
-                                        placeholder="Korea"
+                                        placeholder={t('logNew.countryPlaceholder')}
                                     />
                                 </div>
                             </div>
@@ -355,11 +434,85 @@ export default function NewLogPage() {
 
                         {/* Time */}
                         <section className="logbook-section">
-                            <h2 className="section-title">⏱️ Time</h2>
-                            <div className="grid grid-cols-4 gap-3">
-                                <div>
-                                    <label className="field-label">Surface Interval</label>
-                                    <div className="flex items-center gap-1">
+                            <h2 className="section-title">{t('logNew.sectionTime')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div className="col-span-1">
+                                    <label className="field-label">{t('logNew.startTime')} <span className="text-xs font-normal text-slate-400">{t('logNew.localTimeNote')}</span></label>
+                                    <input
+                                        type="time"
+                                        value={commonData.timeStart}
+                                        onChange={e => {
+                                            const newStart = e.target.value;
+                                            setCommonData(prev => {
+                                                const newData = { ...prev, timeStart: newStart };
+                                                if (newStart && prev.timeEnd) {
+                                                    const start = new Date(`1970-01-01T${newStart}:00`);
+                                                    const end = new Date(`1970-01-01T${prev.timeEnd}:00`);
+                                                    let diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+                                                    if (diff < 0) diff += 24 * 60; // Handle overnight
+                                                    newData.divingTime = diff;
+                                                }
+                                                return newData;
+                                            });
+                                        }}
+                                        className="field-input min-h-[44px]"
+                                        required
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="field-label">{t('logNew.endTime')} <span className="text-xs font-normal text-slate-400">{t('logNew.localTimeNote')}</span></label>
+                                    <input
+                                        type="time"
+                                        value={commonData.timeEnd}
+                                        onChange={e => {
+                                            const newEnd = e.target.value;
+                                            setCommonData(prev => {
+                                                const newData = { ...prev, timeEnd: newEnd };
+                                                if (newEnd && prev.timeStart) {
+                                                    const start = new Date(`1970-01-01T${prev.timeStart}:00`);
+                                                    const end = new Date(`1970-01-01T${newEnd}:00`);
+                                                    let diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+                                                    if (diff < 0) diff += 24 * 60; // Handle overnight
+                                                    newData.divingTime = diff;
+                                                }
+                                                return newData;
+                                            });
+                                        }}
+                                        className="field-input min-h-[44px]"
+                                        required
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="field-label">{t('logNew.divingTime')}</label>
+                                    <div className="input-group">
+                                        <input
+                                            type="number"
+                                            value={commonData.divingTime || ''}
+                                            onChange={e => {
+                                                const newDivingTime = Number(e.target.value);
+                                                setCommonData(prev => {
+                                                    const newData = { ...prev, divingTime: newDivingTime };
+                                                    // Optionally update End Time when Diving Time changes?
+                                                    // User didn't explicitly ask for this direction but "서로 상호작용" suggests it.
+                                                    // If Start exists, update End.
+                                                    if (newDivingTime > 0 && prev.timeStart) {
+                                                        const start = new Date(`1970-01-01T${prev.timeStart}:00`);
+                                                        const end = new Date(start.getTime() + newDivingTime * 60 * 1000);
+                                                        newData.timeEnd = end.toTimeString().slice(0, 5);
+                                                    }
+                                                    return newData;
+                                                });
+                                            }}
+                                            className="field-input"
+                                            placeholder="45"
+                                            required
+                                        />
+                                        <span className="input-unit">min</span>
+                                    </div>
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="field-label">{t('logNew.surfaceInterval')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={commonData.surfaceInterval || ''}
@@ -367,130 +520,96 @@ export default function NewLogPage() {
                                             className="field-input"
                                             placeholder="60"
                                         />
-                                        <span className="text-slate-400 text-sm">min</span>
+                                        <span className="input-unit">min</span>
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="field-label">Diving Time</label>
-                                    <div className="flex items-center gap-1">
-                                        <input
-                                            type="number"
-                                            value={commonData.divingTime || ''}
-                                            onChange={e => setCommonData({ ...commonData, divingTime: Number(e.target.value) })}
-                                            className="field-input"
-                                            placeholder="45"
-                                            required
-                                        />
-                                        <span className="text-slate-400 text-sm">min</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="field-label">Start <span className="text-xs font-normal text-slate-400">(현지 시간)</span></label>
-                                    <input
-                                        type="time"
-                                        value={commonData.timeStart}
-                                        onChange={e => setCommonData({ ...commonData, timeStart: e.target.value })}
-                                        className="field-input min-h-[44px]"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">End <span className="text-xs font-normal text-slate-400">(현지 시간)</span></label>
-                                    <input
-                                        type="time"
-                                        value={commonData.timeEnd}
-                                        onChange={e => setCommonData({ ...commonData, timeEnd: e.target.value })}
-                                        className="field-input min-h-[44px]"
-                                        required
-                                    />
                                 </div>
                             </div>
                         </section>
 
                         {/* Depth & Temp */}
                         <section className="logbook-section">
-                            <h2 className="section-title">📏 Depth & Temperature</h2>
-                            <div className="grid grid-cols-3 gap-3">
+                            <h2 className="section-title">{t('logNew.sectionDepth')}</h2>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="field-label">Max Depth</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.maxDepth')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             step="0.1"
                                             value={commonData.maxDepth || ''}
                                             onChange={e => setCommonData({ ...commonData, maxDepth: Number(e.target.value) })}
-                                            className="field-input min-h-[44px]"
+                                            className="field-input"
                                             placeholder="18"
                                         />
-                                        <span className="text-slate-400 text-sm">m</span>
+                                        <span className="input-unit">m</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">Avg Depth</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.avgDepth')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             step="0.1"
                                             value={commonData.avgDepth || ''}
                                             onChange={e => setCommonData({ ...commonData, avgDepth: Number(e.target.value) })}
-                                            className="field-input min-h-[44px]"
+                                            className="field-input"
                                             placeholder="12"
                                         />
-                                        <span className="text-slate-400 text-sm">m</span>
+                                        <span className="input-unit">m</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">Visibility</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.visibility')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={commonData.visibility || ''}
                                             onChange={e => setCommonData({ ...commonData, visibility: Number(e.target.value) })}
-                                            className="field-input min-h-[44px]"
+                                            className="field-input"
                                             placeholder="15"
                                         />
-                                        <span className="text-slate-400 text-sm">m</span>
+                                        <span className="input-unit">m</span>
                                     </div>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3 mt-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
                                 <div>
-                                    <label className="field-label">Min Temp</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.minTemp')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={commonData.tempMin || ''}
                                             onChange={e => setCommonData({ ...commonData, tempMin: Number(e.target.value) })}
-                                            className="field-input min-h-[44px]"
+                                            className="field-input"
                                             placeholder="20"
                                         />
-                                        <span className="text-slate-400 text-sm">°C</span>
+                                        <span className="input-unit">°C</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">Max Temp</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.maxTemp')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={commonData.tempMax || ''}
                                             onChange={e => setCommonData({ ...commonData, tempMax: Number(e.target.value) })}
-                                            className="field-input min-h-[44px]"
+                                            className="field-input"
                                             placeholder="24"
                                         />
-                                        <span className="text-slate-400 text-sm">°C</span>
+                                        <span className="input-unit">°C</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">Avg Temp</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.avgTemp')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={commonData.tempAvg || ''}
                                             onChange={e => setCommonData({ ...commonData, tempAvg: Number(e.target.value) })}
-                                            className="field-input min-h-[44px]"
+                                            className="field-input"
                                             placeholder="22"
                                         />
-                                        <span className="text-slate-400 text-sm">°C</span>
+                                        <span className="input-unit">°C</span>
                                     </div>
                                 </div>
                             </div>
@@ -498,79 +617,79 @@ export default function NewLogPage() {
 
                         {/* Conditions */}
                         <section className="logbook-section">
-                            <h2 className="section-title">🌊 Conditions</h2>
-                            <div className="grid grid-cols-3 gap-3">
+                            <h2 className="section-title">{t('logNew.sectionConditions')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="field-label">Weather</label>
+                                    <label className="field-label">{t('logNew.weather')}</label>
                                     <select
                                         value={commonData.weather}
                                         onChange={e => setCommonData({ ...commonData, weather: e.target.value as WeatherIcon })}
                                         className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
-                                        <option value="sunny">☀️ 맑음</option>
-                                        <option value="partly_cloudy">⛅ 구름 조금</option>
-                                        <option value="cloudy">☁️ 흐림</option>
-                                        <option value="rainy">🌧️ 비</option>
-                                        <option value="stormy">⛈️ 폭풍</option>
+                                        <option value="sunny">{t('logNew.weatherSunny')}</option>
+                                        <option value="partly_cloudy">{t('logNew.weatherPartlyCloudy')}</option>
+                                        <option value="cloudy">{t('logNew.weatherCloudy')}</option>
+                                        <option value="rainy">{t('logNew.weatherRainy')}</option>
+                                        <option value="stormy">{t('logNew.weatherStormy')}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="field-label">Current</label>
+                                    <label className="field-label">{t('logNew.current')}</label>
                                     <select
                                         value={commonData.current}
                                         onChange={e => setCommonData({ ...commonData, current: e.target.value })}
                                         className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
-                                        <option value="none">없음</option>
-                                        <option value="weak">약함</option>
-                                        <option value="moderate">보통</option>
-                                        <option value="strong">강함</option>
+                                        <option value="none">{t('logNew.currentNone')}</option>
+                                        <option value="weak">{t('logNew.currentWeak')}</option>
+                                        <option value="moderate">{t('logNew.currentModerate')}</option>
+                                        <option value="strong">{t('logNew.currentStrong')}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="field-label">Entry</label>
+                                    <label className="field-label">{t('logNew.entry')}</label>
                                     <select
                                         value={commonData.entryMethod}
                                         onChange={e => setCommonData({ ...commonData, entryMethod: e.target.value as EntryMethod })}
                                         className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
-                                        <option value="giant_stride">Giant Stride</option>
-                                        <option value="back_roll">Back Roll</option>
-                                        <option value="controlled_seated">Controlled Seated</option>
-                                        <option value="shore">Shore</option>
+                                        <option value="giant_stride">{t('logNew.entryGiant')}</option>
+                                        <option value="back_roll">{t('logNew.entryBackRoll')}</option>
+                                        <option value="controlled_seated">{t('logNew.entrySeated')}</option>
+                                        <option value="shore">{t('logNew.entryShore')}</option>
                                     </select>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3 mt-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                                 <div>
-                                    <label className="field-label">Wave</label>
+                                    <label className="field-label">{t('logNew.wave')}</label>
                                     <select
                                         value={commonData.wave}
                                         onChange={e => setCommonData({ ...commonData, wave: e.target.value })}
                                         className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
-                                        <option value="calm">잔잔</option>
-                                        <option value="slight">약간</option>
-                                        <option value="moderate">보통</option>
-                                        <option value="rough">거침</option>
+                                        <option value="calm">{t('logNew.waveCalm')}</option>
+                                        <option value="slight">{t('logNew.waveSlight')}</option>
+                                        <option value="moderate">{t('logNew.waveModerate')}</option>
+                                        <option value="rough">{t('logNew.waveRough')}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="field-label">Wind</label>
+                                    <label className="field-label">{t('logNew.wind')}</label>
                                     <select
                                         value={commonData.wind}
                                         onChange={e => setCommonData({ ...commonData, wind: e.target.value })}
                                         className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
-                                        <option value="calm">없음</option>
-                                        <option value="light">약함</option>
-                                        <option value="moderate">보통</option>
-                                        <option value="strong">강함</option>
+                                        <option value="calm">{t('logNew.windNone')}</option>
+                                        <option value="light">{t('logNew.windLight')}</option>
+                                        <option value="moderate">{t('logNew.windModerate')}</option>
+                                        <option value="strong">{t('logNew.windStrong')}</option>
                                     </select>
                                 </div>
                             </div>
@@ -582,83 +701,86 @@ export default function NewLogPage() {
                                 onClick={() => setStep(1)}
                                 className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors text-lg"
                             >
-                                이전
+                                {t('common.prev')}
                             </button>
                             <button
                                 onClick={handleStep2Next}
                                 className="flex-1 py-4 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors text-lg"
                             >
-                                다음
+                                {t('common.next')}
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Step 3: Personal Info */}
+                {/* Step 3: Personal Logs */}
                 {step === 3 && (
                     <div className="animate-fade-in space-y-6">
                         <div className="text-center mb-6">
                             <p className="text-sm text-slate-400">
-                                🔒 개인 장비 및 팀 정보 (비공개)
+                                {t('logNew.step3Sub')}
                             </p>
                         </div>
 
                         {/* Air Tank */}
                         <section className="logbook-section">
-                            <h2 className="section-title">🛢️ Air Tank</h2>
-                            <div className="grid grid-cols-2 gap-4">
+                            <h2 className="section-title">{t('logNew.sectionTank')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="field-label">Material</label>
+                                    <label className="field-label">{t('logNew.material')}</label>
                                     <select
                                         value={personalData.tankMaterial}
                                         onChange={e => setPersonalData({ ...personalData, tankMaterial: e.target.value as TankMaterial })}
                                         className="field-input"
                                     >
-                                        <option value="aluminum">Aluminum</option>
-                                        <option value="steel">Steel</option>
+                                        <option value="aluminum">{t('logNew.tankAluminum')}</option>
+                                        <option value="steel">{t('logNew.tankSteel')}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="field-label">Config</label>
+                                    <label className="field-label">{t('logNew.config')}</label>
                                     <select
                                         value={personalData.tankConfig}
                                         onChange={e => setPersonalData({ ...personalData, tankConfig: e.target.value as TankConfig })}
                                         className="field-input"
                                     >
-                                        <option value="single">Single</option>
-                                        <option value="double">Double</option>
-                                        <option value="sidemount">Sidemount</option>
+                                        <option value="single">{t('logNew.tankSingle')}</option>
+                                        <option value="double">{t('logNew.tankDouble')}</option>
+                                        <option value="sidemount">{t('logNew.tankSidemount')}</option>
                                     </select>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-4 gap-3 mt-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
                                 <div>
-                                    <label className="field-label">Gas</label>
+                                    <label className="field-label">{t('logNew.gas')}</label>
                                     <select
                                         value={personalData.gasMix}
                                         onChange={e => setPersonalData({ ...personalData, gasMix: e.target.value as GasMix })}
                                         className="field-input"
                                     >
-                                        <option value="air">Air</option>
-                                        <option value="nitrox">Nitrox</option>
-                                        <option value="trimix">Trimix</option>
+                                        <option value="air">{t('logNew.gasAir')}</option>
+                                        <option value="nitrox">{t('logNew.gasNitrox')}</option>
+                                        <option value="trimix">{t('logNew.gasTrimix')}</option>
                                     </select>
                                 </div>
                                 {personalData.gasMix === 'nitrox' && (
                                     <div>
                                         <label className="field-label">O₂ %</label>
-                                        <input
-                                            type="number"
-                                            value={personalData.nitroxPercent || ''}
-                                            onChange={e => setPersonalData({ ...personalData, nitroxPercent: Number(e.target.value) })}
-                                            className="field-input"
-                                            placeholder="32"
-                                        />
+                                        <div className="input-group">
+                                            <input
+                                                type="number"
+                                                value={personalData.nitroxPercent || ''}
+                                                onChange={e => setPersonalData({ ...personalData, nitroxPercent: Number(e.target.value) })}
+                                                className="field-input"
+                                                placeholder="32"
+                                            />
+                                            <span className="input-unit">%</span>
+                                        </div>
                                     </div>
                                 )}
                                 <div>
-                                    <label className="field-label">Start</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.startPressure')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={personalData.pressureStart || ''}
@@ -666,12 +788,12 @@ export default function NewLogPage() {
                                             className="field-input"
                                             placeholder="200"
                                         />
-                                        <span className="text-slate-400 text-sm">bar</span>
+                                        <span className="input-unit">bar</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">End</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.endPressure')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={personalData.pressureEnd || ''}
@@ -679,7 +801,7 @@ export default function NewLogPage() {
                                             className="field-input"
                                             placeholder="50"
                                         />
-                                        <span className="text-slate-400 text-sm">bar</span>
+                                        <span className="input-unit">bar</span>
                                     </div>
                                 </div>
                             </div>
@@ -687,11 +809,11 @@ export default function NewLogPage() {
 
                         {/* Weight */}
                         <section className="logbook-section">
-                            <h2 className="section-title">⚖️ Weight</h2>
-                            <div className="grid grid-cols-2 gap-4">
+                            <h2 className="section-title">{t('logNew.sectionWeight')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="field-label">Belt</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.belt')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={personalData.weightBelt || ''}
@@ -699,12 +821,12 @@ export default function NewLogPage() {
                                             className="field-input"
                                             placeholder="4"
                                         />
-                                        <span className="text-slate-400 text-sm">kg</span>
+                                        <span className="input-unit">kg</span>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">Pocket</label>
-                                    <div className="flex items-center gap-1">
+                                    <label className="field-label">{t('logNew.pocket')}</label>
+                                    <div className="input-group">
                                         <input
                                             type="number"
                                             value={personalData.weightPocket || ''}
@@ -712,7 +834,7 @@ export default function NewLogPage() {
                                             className="field-input"
                                             placeholder="2"
                                         />
-                                        <span className="text-slate-400 text-sm">kg</span>
+                                        <span className="input-unit">kg</span>
                                     </div>
                                 </div>
                             </div>
@@ -720,76 +842,76 @@ export default function NewLogPage() {
 
                         {/* Instruments */}
                         <section className="logbook-section">
-                            <h2 className="section-title">🔧 Instruments</h2>
-                            <div className="grid grid-cols-3 gap-3">
+                            <h2 className="section-title">{t('logNew.sectionInstruments')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="field-label">Fins</label>
+                                    <label className="field-label">{t('logNew.fins')}</label>
                                     <input
                                         type="text"
                                         value={personalData.fins}
                                         onChange={e => setPersonalData({ ...personalData, fins: e.target.value })}
                                         className="field-input"
-                                        placeholder="모델명"
+                                        placeholder={t('logNew.modelPlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">Mask</label>
+                                    <label className="field-label">{t('logNew.mask')}</label>
                                     <input
                                         type="text"
                                         value={personalData.mask}
                                         onChange={e => setPersonalData({ ...personalData, mask: e.target.value })}
                                         className="field-input"
-                                        placeholder="모델명"
+                                        placeholder={t('logNew.modelPlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">Suit</label>
+                                    <label className="field-label">{t('logNew.suit')}</label>
                                     <input
                                         type="text"
                                         value={personalData.suit}
                                         onChange={e => setPersonalData({ ...personalData, suit: e.target.value })}
                                         className="field-input"
-                                        placeholder="5mm/3mm"
+                                        placeholder={t('logNew.suitPlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">Computer</label>
+                                    <label className="field-label">{t('logNew.computer')}</label>
                                     <input
                                         type="text"
                                         value={personalData.computer}
                                         onChange={e => setPersonalData({ ...personalData, computer: e.target.value })}
                                         className="field-input"
-                                        placeholder="모델명"
+                                        placeholder={t('logNew.modelPlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">Regulator</label>
+                                    <label className="field-label">{t('logNew.regulator')}</label>
                                     <input
                                         type="text"
                                         value={personalData.regulator}
                                         onChange={e => setPersonalData({ ...personalData, regulator: e.target.value })}
                                         className="field-input"
-                                        placeholder="모델명"
+                                        placeholder={t('logNew.modelPlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">BCD</label>
+                                    <label className="field-label">{t('logNew.bcd')}</label>
                                     <input
                                         type="text"
                                         value={personalData.bcd}
                                         onChange={e => setPersonalData({ ...personalData, bcd: e.target.value })}
                                         className="field-input"
-                                        placeholder="모델명"
+                                        placeholder={t('logNew.modelPlaceholder')}
                                     />
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-3 mt-4">
                                 {[
-                                    { key: 'snorkel', label: 'Snorkel' },
-                                    { key: 'gloves', label: 'Gloves' },
-                                    { key: 'boots', label: 'Boots' },
-                                    { key: 'hood', label: 'Hood' },
-                                    { key: 'swimwear', label: 'Swimwear' },
+                                    { key: 'snorkel', label: t('logNew.snorkel') },
+                                    { key: 'gloves', label: t('logNew.gloves') },
+                                    { key: 'boots', label: t('logNew.boots') },
+                                    { key: 'hood', label: t('logNew.hood') },
+                                    { key: 'swimwear', label: t('logNew.swimwear') },
                                 ].map(item => (
                                     <label key={item.key} className="flex items-center gap-2 cursor-pointer">
                                         <input
@@ -806,36 +928,36 @@ export default function NewLogPage() {
 
                         {/* Team */}
                         <section className="logbook-section">
-                            <h2 className="section-title">👥 Team</h2>
-                            <div className="grid grid-cols-3 gap-3">
+                            <h2 className="section-title">{t('logNew.sectionTeam')}</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="field-label">Instructor</label>
+                                    <label className="field-label">{t('logNew.instructor')}</label>
                                     <input
                                         type="text"
                                         value={personalData.instructor}
                                         onChange={e => setPersonalData({ ...personalData, instructor: e.target.value })}
                                         className="field-input"
-                                        placeholder="강사 이름"
+                                        placeholder={t('logNew.namePlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">Buddy</label>
+                                    <label className="field-label">{t('logNew.buddy')}</label>
                                     <input
                                         type="text"
                                         value={personalData.buddy}
                                         onChange={e => setPersonalData({ ...personalData, buddy: e.target.value })}
                                         className="field-input"
-                                        placeholder="버디 이름"
+                                        placeholder={t('logNew.namePlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">Guide</label>
+                                    <label className="field-label">{t('logNew.guide')}</label>
                                     <input
                                         type="text"
                                         value={personalData.guide}
                                         onChange={e => setPersonalData({ ...personalData, guide: e.target.value })}
                                         className="field-input"
-                                        placeholder="가이드 이름"
+                                        placeholder={t('logNew.namePlaceholder')}
                                     />
                                 </div>
                             </div>
@@ -843,12 +965,12 @@ export default function NewLogPage() {
 
                         {/* Notes */}
                         <section className="logbook-section">
-                            <h2 className="section-title">📝 Notes</h2>
+                            <h2 className="section-title">{t('logNew.sectionNotes')}</h2>
                             <textarea
                                 value={personalData.notes}
                                 onChange={e => setPersonalData({ ...personalData, notes: e.target.value })}
                                 className="field-input min-h-[120px] resize-y"
-                                placeholder="다이빙 중 관찰한 생물, 특이사항, 느낀점 등을 기록하세요..."
+                                placeholder={t('logNew.notesPlaceholder')}
                             />
                         </section>
 
@@ -856,16 +978,16 @@ export default function NewLogPage() {
                         <div className="flex gap-3 pt-4">
                             <button
                                 onClick={() => setStep(2)}
-                                className="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                                className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors text-lg"
                             >
-                                이전
+                                {t('common.prev')}
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={isSaving}
-                                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors disabled:opacity-50"
+                                className="flex-1 py-4 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors disabled:opacity-50 text-lg"
                             >
-                                {isSaving ? '저장 중...' : '저장하기'}
+                                {isSaving ? t('common.saving') : t('common.save')}
                             </button>
                         </div>
                     </div>
@@ -880,8 +1002,8 @@ export default function NewLogPage() {
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-white mb-2">로그 저장 완료!</h2>
-                            <p className="text-slate-400">다이빙 로그가 성공적으로 저장되었습니다</p>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('logNew.logSaved')}</h2>
+                            <p className="text-slate-400">{t('logNew.logSavedSub')}</p>
                         </div>
 
                         {/* Navigation */}
@@ -890,14 +1012,14 @@ export default function NewLogPage() {
                                 href="/"
                                 className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium text-center transition-colors text-lg"
                             >
-                                목록으로
+                                {t('logNew.backToList')}
                             </Link>
                             {!isLoggedIn ? (
                                 <button
                                     onClick={signInWithGoogle}
-                                    className="flex-1 py-4 px-4 rounded-xl bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-sm"
+                                    className="flex-1 py-4 px-4 rounded-xl bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-lg"
                                 >
-                                    로그인하고 공유하기
+                                    {t('logNew.loginToShare')}
                                 </button>
                             ) : (
                                 <button
@@ -912,14 +1034,14 @@ export default function NewLogPage() {
                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                             </svg>
-                                            복사됨!
+                                            {t('logNew.copied')}
                                         </>
                                     ) : (
                                         <>
                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                                             </svg>
-                                            공유 링크 복사
+                                            {t('logNew.copyLink')}
                                         </>
                                     )}
                                 </button>
@@ -936,7 +1058,7 @@ export default function NewLogPage() {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="card p-8 text-center">
                         <div className="animate-spin w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4" />
-                        <p className="text-white">로그 저장 중...</p>
+                        <p className="text-white">{t('common.saving')}</p>
                     </div>
                 </div>
             )}
