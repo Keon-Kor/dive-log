@@ -4,8 +4,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-// Import FULL bundle for HEIC support (default import is Lite which only supports JPEG/TIFF)
-import exifr from 'exifr/dist/full.esm.mjs';
 
 // App version for deployment verification
 export const APP_VERSION = 'v1.3.4';
@@ -152,6 +150,10 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         // 2. Try native parsing first
         try {
             const arrayBuffer = await file.arrayBuffer();
+
+            // Dynamic import to avoid SSR issues
+            const exifrModule = await import('exifr/dist/full.esm.mjs');
+            const exifr = exifrModule.default;
 
             // Only parse what we need for performance & privacy
             const exif = await exifr.parse(arrayBuffer, {
