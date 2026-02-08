@@ -64,6 +64,7 @@ export default function NewLogPage() {
         wave: '',
         wind: '',
         entryMethod: '' as EntryMethod | '',
+        airTemp: 0,
     });
 
     // Form State - Step 3 (Personal)
@@ -435,7 +436,7 @@ export default function NewLogPage() {
                         {/* Time */}
                         <section className="logbook-section">
                             <h2 className="section-title">{t('logNew.sectionTime')}</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                                 <div className="col-span-1">
                                     <label className="field-label">{t('logNew.startTime')} <span className="text-xs font-normal text-slate-400">{t('logNew.localTimeNote')}</span></label>
                                     <input
@@ -620,7 +621,6 @@ export default function NewLogPage() {
                             <h2 className="section-title">{t('logNew.sectionConditions')}</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="field-label">{t('logNew.weather')}</label>
                                     <select
                                         value={commonData.weather}
                                         onChange={e => setCommonData({ ...commonData, weather: e.target.value as WeatherIcon })}
@@ -633,6 +633,19 @@ export default function NewLogPage() {
                                         <option value="rainy">{t('logNew.weatherRainy')}</option>
                                         <option value="stormy">{t('logNew.weatherStormy')}</option>
                                     </select>
+                                </div>
+                                <div>
+                                    <label className="field-label">{t('logNew.airTemp')}</label>
+                                    <div className="input-group">
+                                        <input
+                                            type="number"
+                                            value={commonData.airTemp || ''}
+                                            onChange={e => setCommonData({ ...commonData, airTemp: Number(e.target.value) })}
+                                            className="field-input"
+                                            placeholder="30"
+                                        />
+                                        <span className="input-unit">°C</span>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="field-label">{t('logNew.current')}</label>
@@ -711,362 +724,369 @@ export default function NewLogPage() {
                             </button>
                         </div>
                     </div>
-                )}
+                )
+                }
 
                 {/* Step 3: Personal Logs */}
-                {step === 3 && (
-                    <div className="animate-fade-in space-y-6">
-                        <div className="text-center mb-6">
-                            <p className="text-sm text-slate-400">
-                                {t('logNew.step3Sub')}
-                            </p>
-                        </div>
-
-                        {/* Air Tank */}
-                        <section className="logbook-section">
-                            <h2 className="section-title">{t('logNew.sectionTank')}</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="field-label">{t('logNew.material')}</label>
-                                    <select
-                                        value={personalData.tankMaterial}
-                                        onChange={e => setPersonalData({ ...personalData, tankMaterial: e.target.value as TankMaterial })}
-                                        className="field-input"
-                                    >
-                                        <option value="aluminum">{t('logNew.tankAluminum')}</option>
-                                        <option value="steel">{t('logNew.tankSteel')}</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.config')}</label>
-                                    <select
-                                        value={personalData.tankConfig}
-                                        onChange={e => setPersonalData({ ...personalData, tankConfig: e.target.value as TankConfig })}
-                                        className="field-input"
-                                    >
-                                        <option value="single">{t('logNew.tankSingle')}</option>
-                                        <option value="double">{t('logNew.tankDouble')}</option>
-                                        <option value="sidemount">{t('logNew.tankSidemount')}</option>
-                                    </select>
-                                </div>
+                {
+                    step === 3 && (
+                        <div className="animate-fade-in space-y-6">
+                            <div className="text-center mb-6">
+                                <p className="text-sm text-slate-400">
+                                    {t('logNew.step3Sub')}
+                                </p>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                                <div>
-                                    <label className="field-label">{t('logNew.gas')}</label>
-                                    <select
-                                        value={personalData.gasMix}
-                                        onChange={e => setPersonalData({ ...personalData, gasMix: e.target.value as GasMix })}
-                                        className="field-input"
-                                    >
-                                        <option value="air">{t('logNew.gasAir')}</option>
-                                        <option value="nitrox">{t('logNew.gasNitrox')}</option>
-                                        <option value="trimix">{t('logNew.gasTrimix')}</option>
-                                    </select>
-                                </div>
-                                {personalData.gasMix === 'nitrox' && (
+
+                            {/* Air Tank */}
+                            <section className="logbook-section">
+                                <h2 className="section-title">{t('logNew.sectionTank')}</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="field-label">O₂ %</label>
+                                        <label className="field-label">{t('logNew.material')}</label>
+                                        <select
+                                            value={personalData.tankMaterial}
+                                            onChange={e => setPersonalData({ ...personalData, tankMaterial: e.target.value as TankMaterial })}
+                                            className="field-input"
+                                        >
+                                            <option value="aluminum">{t('logNew.tankAluminum')}</option>
+                                            <option value="steel">{t('logNew.tankSteel')}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.config')}</label>
+                                        <select
+                                            value={personalData.tankConfig}
+                                            onChange={e => setPersonalData({ ...personalData, tankConfig: e.target.value as TankConfig })}
+                                            className="field-input"
+                                        >
+                                            <option value="single">{t('logNew.tankSingle')}</option>
+                                            <option value="double">{t('logNew.tankDouble')}</option>
+                                            <option value="sidemount">{t('logNew.tankSidemount')}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                                    <div>
+                                        <label className="field-label">{t('logNew.gas')}</label>
+                                        <select
+                                            value={personalData.gasMix}
+                                            onChange={e => setPersonalData({ ...personalData, gasMix: e.target.value as GasMix })}
+                                            className="field-input"
+                                        >
+                                            <option value="air">{t('logNew.gasAir')}</option>
+                                            <option value="nitrox">{t('logNew.gasNitrox')}</option>
+                                            <option value="trimix">{t('logNew.gasTrimix')}</option>
+                                        </select>
+                                    </div>
+                                    {personalData.gasMix === 'nitrox' && (
+                                        <div>
+                                            <label className="field-label">O₂ %</label>
+                                            <div className="input-group">
+                                                <input
+                                                    type="number"
+                                                    value={personalData.nitroxPercent || ''}
+                                                    onChange={e => setPersonalData({ ...personalData, nitroxPercent: Number(e.target.value) })}
+                                                    className="field-input"
+                                                    placeholder="32"
+                                                />
+                                                <span className="input-unit">%</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label className="field-label">{t('logNew.startPressure')}</label>
                                         <div className="input-group">
                                             <input
                                                 type="number"
-                                                value={personalData.nitroxPercent || ''}
-                                                onChange={e => setPersonalData({ ...personalData, nitroxPercent: Number(e.target.value) })}
+                                                value={personalData.pressureStart || ''}
+                                                onChange={e => setPersonalData({ ...personalData, pressureStart: Number(e.target.value) })}
                                                 className="field-input"
-                                                placeholder="32"
+                                                placeholder="200"
                                             />
-                                            <span className="input-unit">%</span>
+                                            <span className="input-unit">bar</span>
                                         </div>
                                     </div>
-                                )}
-                                <div>
-                                    <label className="field-label">{t('logNew.startPressure')}</label>
-                                    <div className="input-group">
-                                        <input
-                                            type="number"
-                                            value={personalData.pressureStart || ''}
-                                            onChange={e => setPersonalData({ ...personalData, pressureStart: Number(e.target.value) })}
-                                            className="field-input"
-                                            placeholder="200"
-                                        />
-                                        <span className="input-unit">bar</span>
+                                    <div>
+                                        <label className="field-label">{t('logNew.endPressure')}</label>
+                                        <div className="input-group">
+                                            <input
+                                                type="number"
+                                                value={personalData.pressureEnd || ''}
+                                                onChange={e => setPersonalData({ ...personalData, pressureEnd: Number(e.target.value) })}
+                                                className="field-input"
+                                                placeholder="50"
+                                            />
+                                            <span className="input-unit">bar</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.endPressure')}</label>
-                                    <div className="input-group">
-                                        <input
-                                            type="number"
-                                            value={personalData.pressureEnd || ''}
-                                            onChange={e => setPersonalData({ ...personalData, pressureEnd: Number(e.target.value) })}
-                                            className="field-input"
-                                            placeholder="50"
-                                        />
-                                        <span className="input-unit">bar</span>
+                            </section>
+
+                            {/* Weight */}
+                            <section className="logbook-section">
+                                <h2 className="section-title">{t('logNew.sectionWeight')}</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="field-label">{t('logNew.belt')}</label>
+                                        <div className="input-group">
+                                            <input
+                                                type="number"
+                                                value={personalData.weightBelt || ''}
+                                                onChange={e => setPersonalData({ ...personalData, weightBelt: Number(e.target.value) })}
+                                                className="field-input"
+                                                placeholder="4"
+                                            />
+                                            <span className="input-unit">kg</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.pocket')}</label>
+                                        <div className="input-group">
+                                            <input
+                                                type="number"
+                                                value={personalData.weightPocket || ''}
+                                                onChange={e => setPersonalData({ ...personalData, weightPocket: Number(e.target.value) })}
+                                                className="field-input"
+                                                placeholder="2"
+                                            />
+                                            <span className="input-unit">kg</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </section>
+                            </section>
 
-                        {/* Weight */}
-                        <section className="logbook-section">
-                            <h2 className="section-title">{t('logNew.sectionWeight')}</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="field-label">{t('logNew.belt')}</label>
-                                    <div className="input-group">
+                            {/* Instruments */}
+                            <section className="logbook-section">
+                                <h2 className="section-title">{t('logNew.sectionInstruments')}</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="field-label">{t('logNew.fins')}</label>
                                         <input
-                                            type="number"
-                                            value={personalData.weightBelt || ''}
-                                            onChange={e => setPersonalData({ ...personalData, weightBelt: Number(e.target.value) })}
+                                            type="text"
+                                            value={personalData.fins}
+                                            onChange={e => setPersonalData({ ...personalData, fins: e.target.value })}
                                             className="field-input"
-                                            placeholder="4"
+                                            placeholder={t('logNew.modelPlaceholder')}
                                         />
-                                        <span className="input-unit">kg</span>
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.mask')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.mask}
+                                            onChange={e => setPersonalData({ ...personalData, mask: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.modelPlaceholder')}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.suit')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.suit}
+                                            onChange={e => setPersonalData({ ...personalData, suit: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.suitPlaceholder')}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.computer')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.computer}
+                                            onChange={e => setPersonalData({ ...personalData, computer: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.modelPlaceholder')}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.regulator')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.regulator}
+                                            onChange={e => setPersonalData({ ...personalData, regulator: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.modelPlaceholder')}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.bcd')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.bcd}
+                                            onChange={e => setPersonalData({ ...personalData, bcd: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.modelPlaceholder')}
+                                        />
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.pocket')}</label>
-                                    <div className="input-group">
+                                <div className="flex flex-wrap gap-3 mt-4">
+                                    {[
+                                        { key: 'snorkel', label: t('logNew.snorkel') },
+                                        { key: 'gloves', label: t('logNew.gloves') },
+                                        { key: 'boots', label: t('logNew.boots') },
+                                        { key: 'hood', label: t('logNew.hood') },
+                                        { key: 'swimwear', label: t('logNew.swimwear') },
+                                    ].map(item => (
+                                        <label key={item.key} className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={personalData[item.key as keyof typeof personalData] as boolean}
+                                                onChange={e => setPersonalData({ ...personalData, [item.key]: e.target.checked })}
+                                                className="w-4 h-4 rounded bg-slate-700 border-slate-600"
+                                            />
+                                            <span className="text-sm text-slate-300">{item.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </section>
+
+                            {/* Team */}
+                            <section className="logbook-section">
+                                <h2 className="section-title">{t('logNew.sectionTeam')}</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="field-label">{t('logNew.instructor')}</label>
                                         <input
-                                            type="number"
-                                            value={personalData.weightPocket || ''}
-                                            onChange={e => setPersonalData({ ...personalData, weightPocket: Number(e.target.value) })}
+                                            type="text"
+                                            value={personalData.instructor}
+                                            onChange={e => setPersonalData({ ...personalData, instructor: e.target.value })}
                                             className="field-input"
-                                            placeholder="2"
+                                            placeholder={t('logNew.namePlaceholder')}
                                         />
-                                        <span className="input-unit">kg</span>
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.buddy')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.buddy}
+                                            onChange={e => setPersonalData({ ...personalData, buddy: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.namePlaceholder')}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="field-label">{t('logNew.guide')}</label>
+                                        <input
+                                            type="text"
+                                            value={personalData.guide}
+                                            onChange={e => setPersonalData({ ...personalData, guide: e.target.value })}
+                                            className="field-input"
+                                            placeholder={t('logNew.namePlaceholder')}
+                                        />
                                     </div>
                                 </div>
-                            </div>
-                        </section>
+                            </section>
 
-                        {/* Instruments */}
-                        <section className="logbook-section">
-                            <h2 className="section-title">{t('logNew.sectionInstruments')}</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                    <label className="field-label">{t('logNew.fins')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.fins}
-                                        onChange={e => setPersonalData({ ...personalData, fins: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.modelPlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.mask')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.mask}
-                                        onChange={e => setPersonalData({ ...personalData, mask: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.modelPlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.suit')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.suit}
-                                        onChange={e => setPersonalData({ ...personalData, suit: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.suitPlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.computer')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.computer}
-                                        onChange={e => setPersonalData({ ...personalData, computer: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.modelPlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.regulator')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.regulator}
-                                        onChange={e => setPersonalData({ ...personalData, regulator: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.modelPlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.bcd')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.bcd}
-                                        onChange={e => setPersonalData({ ...personalData, bcd: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.modelPlaceholder')}
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-3 mt-4">
-                                {[
-                                    { key: 'snorkel', label: t('logNew.snorkel') },
-                                    { key: 'gloves', label: t('logNew.gloves') },
-                                    { key: 'boots', label: t('logNew.boots') },
-                                    { key: 'hood', label: t('logNew.hood') },
-                                    { key: 'swimwear', label: t('logNew.swimwear') },
-                                ].map(item => (
-                                    <label key={item.key} className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={personalData[item.key as keyof typeof personalData] as boolean}
-                                            onChange={e => setPersonalData({ ...personalData, [item.key]: e.target.checked })}
-                                            className="w-4 h-4 rounded bg-slate-700 border-slate-600"
-                                        />
-                                        <span className="text-sm text-slate-300">{item.label}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </section>
+                            {/* Notes */}
+                            <section className="logbook-section">
+                                <h2 className="section-title">{t('logNew.sectionNotes')}</h2>
+                                <textarea
+                                    value={personalData.notes}
+                                    onChange={e => setPersonalData({ ...personalData, notes: e.target.value })}
+                                    className="field-input min-h-[120px] resize-y"
+                                    placeholder={t('logNew.notesPlaceholder')}
+                                />
+                            </section>
 
-                        {/* Team */}
-                        <section className="logbook-section">
-                            <h2 className="section-title">{t('logNew.sectionTeam')}</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                    <label className="field-label">{t('logNew.instructor')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.instructor}
-                                        onChange={e => setPersonalData({ ...personalData, instructor: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.namePlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.buddy')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.buddy}
-                                        onChange={e => setPersonalData({ ...personalData, buddy: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.namePlaceholder')}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="field-label">{t('logNew.guide')}</label>
-                                    <input
-                                        type="text"
-                                        value={personalData.guide}
-                                        onChange={e => setPersonalData({ ...personalData, guide: e.target.value })}
-                                        className="field-input"
-                                        placeholder={t('logNew.namePlaceholder')}
-                                    />
-                                </div>
+                            {/* Navigation */}
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={() => setStep(2)}
+                                    className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors text-lg"
+                                >
+                                    {t('common.prev')}
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={isSaving}
+                                    className="flex-1 py-4 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors disabled:opacity-50 text-lg"
+                                >
+                                    {isSaving ? t('common.saving') : t('common.save')}
+                                </button>
                             </div>
-                        </section>
-
-                        {/* Notes */}
-                        <section className="logbook-section">
-                            <h2 className="section-title">{t('logNew.sectionNotes')}</h2>
-                            <textarea
-                                value={personalData.notes}
-                                onChange={e => setPersonalData({ ...personalData, notes: e.target.value })}
-                                className="field-input min-h-[120px] resize-y"
-                                placeholder={t('logNew.notesPlaceholder')}
-                            />
-                        </section>
-
-                        {/* Navigation */}
-                        <div className="flex gap-3 pt-4">
-                            <button
-                                onClick={() => setStep(2)}
-                                className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors text-lg"
-                            >
-                                {t('common.prev')}
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving}
-                                className="flex-1 py-4 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors disabled:opacity-50 text-lg"
-                            >
-                                {isSaving ? t('common.saving') : t('common.save')}
-                            </button>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Step 4: Complete */}
-                {step === 4 && (
-                    <div className="animate-fade-in text-center py-12 space-y-8">
-                        <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center animate-pulse-glow">
-                            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-white mb-2">{t('logNew.logSaved')}</h2>
-                            <p className="text-slate-400">{t('logNew.logSavedSub')}</p>
-                        </div>
+                {
+                    step === 4 && (
+                        <div className="animate-fade-in text-center py-12 space-y-8">
+                            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center animate-pulse-glow">
+                                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold text-white mb-2">{t('logNew.logSaved')}</h2>
+                                <p className="text-slate-400">{t('logNew.logSavedSub')}</p>
+                            </div>
 
-                        {/* Navigation */}
-                        <div className="flex gap-4 mb-8">
-                            <Link
-                                href="/"
-                                className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium text-center transition-colors text-lg"
-                            >
-                                {t('logNew.backToList')}
-                            </Link>
-                            {!isLoggedIn ? (
-                                <button
-                                    onClick={signInWithGoogle}
-                                    className="flex-1 py-4 px-4 rounded-xl bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-lg"
+                            {/* Navigation */}
+                            <div className="flex gap-4 mb-8">
+                                <Link
+                                    href="/"
+                                    className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium text-center transition-colors text-lg"
                                 >
-                                    {t('logNew.loginToShare')}
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleCopyShareUrl}
-                                    className={`flex-1 py-4 px-4 rounded-xl font-semibold transition-all text-lg flex items-center justify-center gap-2 ${shareUrlCopied
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/30'
-                                        }`}
-                                >
-                                    {shareUrlCopied ? (
-                                        <>
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            {t('logNew.copied')}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                            </svg>
-                                            {t('logNew.copyLink')}
-                                        </>
-                                    )}
-                                </button>
-                            )}
+                                    {t('logNew.backToList')}
+                                </Link>
+                                {!isLoggedIn ? (
+                                    <button
+                                        onClick={signInWithGoogle}
+                                        className="flex-1 py-4 px-4 rounded-xl bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-lg"
+                                    >
+                                        {t('logNew.loginToShare')}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleCopyShareUrl}
+                                        className={`flex-1 py-4 px-4 rounded-xl font-semibold transition-all text-lg flex items-center justify-center gap-2 ${shareUrlCopied
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/30'
+                                            }`}
+                                    >
+                                        {shareUrlCopied ? (
+                                            <>
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                {t('logNew.copied')}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                                </svg>
+                                                {t('logNew.copyLink')}
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+
+
                         </div>
-
-
-                    </div>
-                )}
-            </main>
+                    )
+                }
+            </main >
 
             {/* Saving Overlay */}
-            {isSaving && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="card p-8 text-center">
-                        <div className="animate-spin w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4" />
-                        <p className="text-white">{t('common.saving')}</p>
+            {
+                isSaving && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                        <div className="card p-8 text-center">
+                            <div className="animate-spin w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4" />
+                            <p className="text-white">{t('common.saving')}</p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Version Footer */}
             <div className="fixed bottom-2 right-2 text-xs text-slate-600">
                 {APP_VERSION}
             </div>
-        </div>
+        </div >
     );
 }

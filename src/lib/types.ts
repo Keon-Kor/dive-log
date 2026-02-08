@@ -64,6 +64,7 @@ export interface DiveLog {
     current?: string;          // 조류 (없음/약함/보통/강함)
     wave?: string;             // 파도
     wind?: string;             // 바람
+    airTemp?: number;          // 수상 온도 (°C)
     entryMethod?: EntryMethod;
 
     // === 장비 체크리스트 ===
@@ -202,6 +203,7 @@ export interface DiveLogFormData {
     current?: string;
     wave?: string;
     wind?: string;
+    airTemp?: number;
     entryMethod?: EntryMethod;
 
     // 장비

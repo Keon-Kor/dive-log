@@ -150,6 +150,7 @@ export function LogDetailContent({ log }: LogDetailContentProps) {
                                     <span className="text-slate-400 text-xs">{t('logDetail.weather')}</span>
                                     <div className="text-white capitalize mt-0.5">
                                         {log.weather ? t(`logNew.weather${log.weather.split('_').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`) : '-'}
+                                        {log.airTemp && ` (${log.airTemp}°C)`}
                                     </div>
                                 </div>
                                 <div>
