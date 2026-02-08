@@ -47,7 +47,7 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-xl font-bold gradient-text">DiveSnap</h1>
-              <p className="text-xs text-slate-400">자동 다이빙 로그</p>
+              <p className="text-xs text-slate-400">사진으로 쉬운 로그 기록과 공유</p>
             </div>
           </div>
 

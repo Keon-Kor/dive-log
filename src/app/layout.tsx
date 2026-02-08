@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "DiveSnap - 자동 다이빙 로그",
+  title: "DiveSnap - 사진으로 쉬운 로그 기록과 공유",
   description: "사진에서 자동으로 다이빙 로그를 생성하세요",
   manifest: "/manifest.json",
   appleWebApp: {
