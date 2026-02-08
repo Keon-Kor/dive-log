@@ -884,23 +884,49 @@ export default function NewLogPage() {
                             <p className="text-slate-400">다이빙 로그가 성공적으로 저장되었습니다</p>
                         </div>
 
-                        {/* Share URL Copy */}
-                        <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 max-w-sm mx-auto">
-                            <p className="text-sm text-slate-400 mb-3">🔗 로그 공유하기</p>
-                            <button
-                                onClick={handleCopyShareUrl}
-                                className={`w-full py-3 px-4 rounded-xl font-medium transition-all ${shareUrlCopied
-                                    ? 'bg-green-500 text-white'
-                                    : 'bg-slate-700 hover:bg-slate-600 text-white'
-                                    }`}
+                        {/* Navigation */}
+                        <div className="flex gap-4 mb-8">
+                            <Link
+                                href="/"
+                                className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium text-center transition-colors text-lg"
                             >
-                                {shareUrlCopied ? '✓ 복사됨!' : 'URL 복사하기'}
-                            </button>
+                                목록으로
+                            </Link>
+                            {!isLoggedIn ? (
+                                <button
+                                    onClick={signInWithGoogle}
+                                    className="flex-1 py-4 px-4 rounded-xl bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-sm"
+                                >
+                                    로그인하고 공유하기
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleCopyShareUrl}
+                                    className={`flex-1 py-4 px-4 rounded-xl font-semibold transition-all text-lg flex items-center justify-center gap-2 ${shareUrlCopied
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/30'
+                                        }`}
+                                >
+                                    {shareUrlCopied ? (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            복사됨!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                            </svg>
+                                            공유 링크 복사
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
 
-                        <Link href="/" className="btn-primary inline-flex items-center gap-2">
-                            홈으로 돌아가기
-                        </Link>
+
                     </div>
                 )}
             </main>
