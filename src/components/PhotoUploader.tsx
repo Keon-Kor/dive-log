@@ -3,9 +3,10 @@
 
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useExifExtractor } from '@/hooks/useExifExtractor';
 import type { ExifResult } from '@/workers/exif-worker';
+import { clientLogger } from '@/lib/clientLogger';
 
 interface PhotoUploaderProps {
     onPhotosProcessed: (results: ExifResult[], files: File[], savePhotos: boolean) => void;
@@ -62,8 +63,13 @@ export function PhotoUploader({
                     // Handle potential array result
                     const convertedBlob = Array.isArray(result) ? result[0] : result;
                     urls.push(URL.createObjectURL(convertedBlob));
-                } catch (e) {
-                    console.error('HEIC preview conversion failed:', e);
+                } catch (e: any) {
+                    // Log the error to server for monitoring, but don't crash UI
+                    clientLogger.error('HEIC preview conversion failed', e, 'PhotoUploader');
+
+                    if (process.env.NODE_ENV === 'development') {
+                        console.warn('HEIC preview generation failed:', e.message);
+                    }
                     // Push a magic string to indicate error, handled in render
                     urls.push('HEIC_ERROR');
                 }
@@ -87,6 +93,27 @@ export function PhotoUploader({
         setExtractedResults(sortedResults);
         setPhase('preview'); // Show preview instead of auto-proceeding
     }, [extractFromFiles]);
+
+    // Re-extract when GPS consent changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const reExtract = useCallback(async () => {
+        if (selectedFiles.length > 0) {
+            const results = await extractFromFiles(selectedFiles);
+            const sortedResults = [...results].sort((a, b) => {
+                const dateA = a.data?.dateTaken ? new Date(a.data.dateTaken).getTime() : 0;
+                const dateB = b.data?.dateTaken ? new Date(b.data.dateTaken).getTime() : 0;
+                return dateB - dateA;
+            });
+            setExtractedResults(sortedResults);
+        }
+    }, [selectedFiles, extractFromFiles]);
+
+    // Trigger re-extraction when GPS consent is toggled while in preview mode
+    useEffect(() => {
+        if (phase === 'preview' && selectedFiles.length > 0) {
+            reExtract();
+        }
+    }, [allowGps, reExtract, phase, selectedFiles.length]);
 
     // User confirms to proceed
     const handleConfirm = useCallback(() => {
@@ -253,7 +280,21 @@ export function PhotoUploader({
                         className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
-                            setAllowGps(!allowGps);
+                            const newAllowGps = !allowGps;
+                            setAllowGps(newAllowGps);
+
+                            // Re-extract if files are already selected to apply new GPS setting
+                            if (selectedFiles.length > 0) {
+                                // We need to use the functional update or a useEffect, but since we are inside an event handler,
+                                // we can't easily force the hook to update immediately and return a new function.
+                                // HOWEVER, useExifExtractor depends on 'finalConfig' which depends on 'allowGps'.
+                                // So simply updating the state will trigger the hook's effect IF the hook uses it.
+                                // BUT extractFromFiles is a useCallback dependent on finalConfig.
+                                // So we need to call the *new* extractFromFiles. 
+                                // Actually, standard React way: utilize useEffect to react to allowGps change? 
+                                // No, that might trigger unwanted runs.
+                                // Better: Just set state, and let a useEffect handle the re-run if phase is 'preview'.
+                            }
                         }}
                     >
                         <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${allowGps ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>

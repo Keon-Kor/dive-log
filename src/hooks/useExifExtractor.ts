@@ -9,13 +9,20 @@ import { useState, useCallback } from 'react';
 export const APP_VERSION = 'v1.3.4';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
+import { clientLogger } from '@/lib/clientLogger';
+
 const LOG_PREFIX = '[ExifExtractor]';
 
-// Safe Logger
+// Safe Logger Wrapper
 const logger = {
     log: (msg: string, ...args: any[]) => IS_DEV && console.log(`${LOG_PREFIX} ${msg}`, ...args),
     warn: (msg: string, ...args: any[]) => IS_DEV && console.warn(`${LOG_PREFIX} ${msg}`, ...args),
-    error: (msg: string, ...args: any[]) => IS_DEV && console.error(`${LOG_PREFIX} ${msg}`, ...args),
+    error: (msg: string, ...args: any[]) => {
+        // Log to console in dev
+        if (IS_DEV) console.error(`${LOG_PREFIX} ${msg}`, ...args);
+        // Send to server in production
+        clientLogger.error(msg, args[0], 'ExifExtractor');
+    },
 };
 
 export interface ExifData {

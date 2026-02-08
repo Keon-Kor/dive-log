@@ -93,11 +93,12 @@ export default function Home() {
         <section className="animate-slide-up">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">최근 다이빙</h2>
-            {logs.length > 0 && (
+            {/* TODO: Create /logs archive page */}
+            {/* {logs.length > 0 && (
               <Link href="/logs" className="text-sm text-cyan-400 hover:text-cyan-300">
                 전체 보기 →
               </Link>
-            )}
+            )} */}
           </div>
 
           {isLoading ? (
