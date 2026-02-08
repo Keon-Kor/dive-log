@@ -490,7 +490,10 @@ export default function NewLogPage() {
                                     />
                                 </div>
                                 <div className="col-span-1">
-                                    <label className="field-label">{t('logNew.divingTime')}</label>
+                                    <label className="field-label">
+                                        {t('logNew.divingTime')}
+                                        <span className="block text-xs font-normal text-transparent select-none">&nbsp;</span>
+                                    </label>
                                     <div className="input-group">
                                         <input
                                             type="number"
@@ -518,7 +521,10 @@ export default function NewLogPage() {
                                     </div>
                                 </div>
                                 <div className="col-span-1">
-                                    <label className="field-label">{t('logNew.surfaceInterval')}</label>
+                                    <label className="field-label">
+                                        {t('logNew.surfaceInterval')}
+                                        <span className="block text-xs font-normal text-transparent select-none">&nbsp;</span>
+                                    </label>
                                     <div className="input-group">
                                         <input
                                             type="number"
