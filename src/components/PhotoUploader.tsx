@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useExifExtractor } from '@/hooks/useExifExtractor';
 import type { ExifResult } from '@/workers/exif-worker';
+import heic2any from 'heic2any'; // Support for HEIC previews
 
 interface PhotoUploaderProps {
     onPhotosProcessed: (results: ExifResult[], files: File[], savePhotos: boolean) => void;
@@ -28,6 +29,7 @@ export function PhotoUploader({
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [extractedResults, setExtractedResults] = useState<ExifResult[]>([]);
     const [savePhotos, setSavePhotos] = useState(false); // Default OFF
+    const [isProcessingPreviews, setIsProcessingPreviews] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { extractFromFiles, isExtracting, progress, error } = useExifExtractor();
 
@@ -35,10 +37,31 @@ export function PhotoUploader({
     const handleFiles = useCallback(async (files: FileList | File[]) => {
         const fileArray = Array.from(files).slice(0, MAX_PHOTOS);
         setSelectedFiles(fileArray);
+        setIsProcessingPreviews(true);
 
-        // Create preview URLs
-        const urls = fileArray.map(file => URL.createObjectURL(file));
+        // Create preview URLs (with HEIC conversion)
+        const urls: string[] = [];
+        for (const file of fileArray) {
+            if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+                try {
+                    // Convert HEIC to JPEG blob for preview
+                    const convertedBlob = await heic2any({
+                        blob: file,
+                        toType: 'image/jpeg',
+                        quality: 0.5 // Lower quality for thumbnail speed
+                    }) as Blob;
+                    urls.push(URL.createObjectURL(convertedBlob));
+                } catch (e) {
+                    console.error('HEIC preview conversion failed:', e);
+                    // Fallback to placeholder or original URL (might break in some browsers)
+                    urls.push(URL.createObjectURL(file));
+                }
+            } else {
+                urls.push(URL.createObjectURL(file));
+            }
+        }
         setPreviewUrls(urls);
+        setIsProcessingPreviews(false);
 
         // Extract EXIF data
         const results = await extractFromFiles(fileArray);
@@ -92,12 +115,14 @@ export function PhotoUploader({
 
     const handleClick = () => fileInputRef.current?.click();
 
-    const handleToggleSavePhotos = () => {
+    const handleToggleSavePhotos = (e: React.MouseEvent) => {
+        e.stopPropagation(); // Stop event bubbling
         if (!isLoggedIn) {
             onLoginClick?.();
             return;
         }
-        setSavePhotos(!savePhotos);
+        console.log('Toggling save photos:', !savePhotos);
+        setSavePhotos(prev => !prev);
     };
 
     // Format date for display
@@ -116,9 +141,14 @@ export function PhotoUploader({
     const formatTime = (dateStr: string) => {
         try {
             const date = new Date(dateStr);
-            return date.toLocaleTimeString('ko-KR', {
-                hour: '2-digit', minute: '2-digit'
+            const timeStr = date.toLocaleTimeString('ko-KR', {
+                hour: '2-digit', minute: '2-digit',
+                hour12: true
             });
+            // Append local timezone indication
+            // const timeZoneName = Intl.DateTimeFormat().resolvedOptions().timeZone; // e.g. "Asia/Seoul"
+            // Or just "Local Time" in Korean
+            return `${timeStr} (현지 시간)`;
         } catch {
             return '';
         }
@@ -171,14 +201,16 @@ export function PhotoUploader({
                             className="hidden"
                         />
 
-                        {isExtracting ? (
+                        {isExtracting || isProcessingPreviews ? (
                             <div className="space-y-4">
                                 <div className="animate-pulse">
                                     <svg className="w-12 h-12 mx-auto text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                 </div>
-                                <p className="text-cyan-400 font-medium">사진 분석 중...</p>
+                                <p className="text-cyan-400 font-medium">
+                                    {isProcessingPreviews ? '미리보기 생성 중...' : '사진 분석 중...'}
+                                </p>
                                 <div className="w-full bg-slate-700 rounded-full h-2">
                                     <div
                                         className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full transition-all duration-300"
@@ -292,7 +324,10 @@ export function PhotoUploader({
                     </div>
 
                     {/* Save Photos Toggle */}
-                    <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-xl">
+                    <div
+                        onClick={handleToggleSavePhotos} // Toggle on container click too
+                        className="p-4 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer hover:bg-slate-800/80 transition-colors"
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-white text-sm font-medium">📷 로그북에 사진도 함께 저장하기</p>
@@ -303,12 +338,11 @@ export function PhotoUploader({
                                     }
                                 </p>
                             </div>
-                            <button
-                                onClick={handleToggleSavePhotos}
+                            <div
                                 className={`
-                                    relative w-12 h-6 rounded-full transition-colors
+                                    relative w-12 h-6 rounded-full transition-colors pointer-events-none 
                                     ${!isLoggedIn
-                                        ? 'bg-slate-600 hover:bg-slate-500 cursor-pointer'
+                                        ? 'bg-slate-600'
                                         : savePhotos ? 'bg-cyan-500' : 'bg-slate-600'
                                     }
                                 `}
@@ -317,7 +351,7 @@ export function PhotoUploader({
                                     absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform
                                     ${savePhotos ? 'left-[26px]' : 'left-0.5'}
                                 `} />
-                            </button>
+                            </div>
                         </div>
                     </div>
 

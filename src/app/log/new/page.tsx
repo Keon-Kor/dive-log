@@ -385,22 +385,22 @@ export default function NewLogPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="field-label">Start</label>
+                                    <label className="field-label">Start <span className="text-xs font-normal text-slate-400">(현지 시간)</span></label>
                                     <input
                                         type="time"
                                         value={commonData.timeStart}
                                         onChange={e => setCommonData({ ...commonData, timeStart: e.target.value })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="field-label">End</label>
+                                    <label className="field-label">End <span className="text-xs font-normal text-slate-400">(현지 시간)</span></label>
                                     <input
                                         type="time"
                                         value={commonData.timeEnd}
                                         onChange={e => setCommonData({ ...commonData, timeEnd: e.target.value })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                         required
                                     />
                                 </div>
@@ -419,7 +419,7 @@ export default function NewLogPage() {
                                             step="0.1"
                                             value={commonData.maxDepth || ''}
                                             onChange={e => setCommonData({ ...commonData, maxDepth: Number(e.target.value) })}
-                                            className="field-input"
+                                            className="field-input min-h-[44px]"
                                             placeholder="18"
                                         />
                                         <span className="text-slate-400 text-sm">m</span>
@@ -433,7 +433,7 @@ export default function NewLogPage() {
                                             step="0.1"
                                             value={commonData.avgDepth || ''}
                                             onChange={e => setCommonData({ ...commonData, avgDepth: Number(e.target.value) })}
-                                            className="field-input"
+                                            className="field-input min-h-[44px]"
                                             placeholder="12"
                                         />
                                         <span className="text-slate-400 text-sm">m</span>
@@ -446,7 +446,7 @@ export default function NewLogPage() {
                                             type="number"
                                             value={commonData.visibility || ''}
                                             onChange={e => setCommonData({ ...commonData, visibility: Number(e.target.value) })}
-                                            className="field-input"
+                                            className="field-input min-h-[44px]"
                                             placeholder="15"
                                         />
                                         <span className="text-slate-400 text-sm">m</span>
@@ -461,7 +461,7 @@ export default function NewLogPage() {
                                             type="number"
                                             value={commonData.tempMin || ''}
                                             onChange={e => setCommonData({ ...commonData, tempMin: Number(e.target.value) })}
-                                            className="field-input"
+                                            className="field-input min-h-[44px]"
                                             placeholder="20"
                                         />
                                         <span className="text-slate-400 text-sm">°C</span>
@@ -474,7 +474,7 @@ export default function NewLogPage() {
                                             type="number"
                                             value={commonData.tempMax || ''}
                                             onChange={e => setCommonData({ ...commonData, tempMax: Number(e.target.value) })}
-                                            className="field-input"
+                                            className="field-input min-h-[44px]"
                                             placeholder="24"
                                         />
                                         <span className="text-slate-400 text-sm">°C</span>
@@ -487,7 +487,7 @@ export default function NewLogPage() {
                                             type="number"
                                             value={commonData.tempAvg || ''}
                                             onChange={e => setCommonData({ ...commonData, tempAvg: Number(e.target.value) })}
-                                            className="field-input"
+                                            className="field-input min-h-[44px]"
                                             placeholder="22"
                                         />
                                         <span className="text-slate-400 text-sm">°C</span>
@@ -505,7 +505,7 @@ export default function NewLogPage() {
                                     <select
                                         value={commonData.weather}
                                         onChange={e => setCommonData({ ...commonData, weather: e.target.value as WeatherIcon })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
                                         <option value="sunny">☀️ 맑음</option>
@@ -520,7 +520,7 @@ export default function NewLogPage() {
                                     <select
                                         value={commonData.current}
                                         onChange={e => setCommonData({ ...commonData, current: e.target.value })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
                                         <option value="none">없음</option>
@@ -534,7 +534,7 @@ export default function NewLogPage() {
                                     <select
                                         value={commonData.entryMethod}
                                         onChange={e => setCommonData({ ...commonData, entryMethod: e.target.value as EntryMethod })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
                                         <option value="giant_stride">Giant Stride</option>
@@ -550,7 +550,7 @@ export default function NewLogPage() {
                                     <select
                                         value={commonData.wave}
                                         onChange={e => setCommonData({ ...commonData, wave: e.target.value })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
                                         <option value="calm">잔잔</option>
@@ -564,7 +564,7 @@ export default function NewLogPage() {
                                     <select
                                         value={commonData.wind}
                                         onChange={e => setCommonData({ ...commonData, wind: e.target.value })}
-                                        className="field-input"
+                                        className="field-input min-h-[44px]"
                                     >
                                         <option value="">-</option>
                                         <option value="calm">없음</option>
@@ -580,13 +580,13 @@ export default function NewLogPage() {
                         <div className="flex gap-3 pt-4">
                             <button
                                 onClick={() => setStep(1)}
-                                className="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                                className="flex-1 py-4 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors text-lg"
                             >
                                 이전
                             </button>
                             <button
                                 onClick={handleStep2Next}
-                                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors"
+                                className="flex-1 py-4 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold transition-colors text-lg"
                             >
                                 다음
                             </button>

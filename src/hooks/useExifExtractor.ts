@@ -8,7 +8,17 @@ import { useState, useCallback } from 'react';
 import exifr from 'exifr/dist/full.esm.mjs';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.3.3';
+export const APP_VERSION = 'v1.3.4';
+
+const IS_DEV = process.env.NODE_ENV === 'development';
+const LOG_PREFIX = '[ExifExtractor]';
+
+// Safe Logger
+const logger = {
+    log: (msg: string, ...args: any[]) => IS_DEV && console.log(`${LOG_PREFIX} ${msg}`, ...args),
+    warn: (msg: string, ...args: any[]) => IS_DEV && console.warn(`${LOG_PREFIX} ${msg}`, ...args),
+    error: (msg: string, ...args: any[]) => IS_DEV && console.error(`${LOG_PREFIX} ${msg}`, ...args),
+};
 
 export interface ExifData {
     dateTaken: string | null;
@@ -34,36 +44,80 @@ interface UseExifExtractorReturn {
     error: string | null;
 }
 
-// Helper to check if file is HEIC
-const isHeicFile = (file: File): boolean => {
-    const fileName = file.name.toLowerCase();
-    return fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+// Configuration options for the hook
+export interface UseExifExtractorConfig {
+    allowGpsExtraction?: boolean; // Default: false (Privacy First)
+    maxFileSizeMB?: number;       // Default: 20MB
+    allowedTypes?: string[];      // Whitelist
+    uploadTimeoutMs?: number;     // Default: 15000ms
+}
+
+const DEFAULT_CONFIG: Required<UseExifExtractorConfig> = {
+    allowGpsExtraction: false,
+    maxFileSizeMB: 20,
+    allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif'],
+    uploadTimeoutMs: 15000,
 };
 
-export function useExifExtractor(): UseExifExtractorReturn {
+export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifExtractorReturn {
+    // Merge validation config
+    const finalConfig = { ...DEFAULT_CONFIG, ...config };
+
     const [isExtracting, setIsExtracting] = useState(false);
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
+    // Security: Validate file before processing
+    const validateFile = (file: File): string | null => {
+        // 1. Type Check (Whitelist)
+        // Check both MIME type and extension for robustness
+        const fileType = file.type.toLowerCase();
+        const fileName = file.name.toLowerCase();
+
+        // HEIC often has empty type or specific types
+        const isHeic = fileName.endsWith('.heic') || fileName.endsWith('.heif');
+        const isValidType = finalConfig.allowedTypes.includes(fileType) || isHeic; // Broaden check for HEIC if needed
+
+        if (!isValidType) {
+            return `지원하지 않는 파일 형식입니다. (${file.type})`;
+        }
+
+        // 2. Size Check
+        const maxBytes = finalConfig.maxFileSizeMB * 1024 * 1024;
+        if (file.size > maxBytes) {
+            return `파일 크기가 너무 큽니다. (최대 ${finalConfig.maxFileSizeMB}MB)`;
+        }
+
+        return null;
+    };
+
     // Helper to process EXIF data into our format
-    const processExif = (exif: any, fileName: string): ExifResult => {
-        // Extract GPS coordinates
+    const processExif = useCallback((exif: any, fileName: string): ExifResult => {
+        // Extract GPS coordinates ONLY if allowed
         let gpsLat: number | null = null;
         let gpsLng: number | null = null;
 
-        if (exif.latitude && exif.longitude) {
-            gpsLat = exif.latitude;
-            gpsLng = exif.longitude;
+        if (finalConfig.allowGpsExtraction) {
+            if (exif.latitude && exif.longitude) {
+                gpsLat = exif.latitude;
+                gpsLng = exif.longitude;
+            } else if (exif.gpsLat && exif.gpsLng) {
+                // Handle pre-processed server response structure
+                gpsLat = exif.gpsLat;
+                gpsLng = exif.gpsLng;
+            }
         }
 
         // Get date
         let dateTaken: string | null = null;
-        const dateValue = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+        // Prioritize original date
+        const dateValue = exif.dateTaken || exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+
         if (dateValue) {
             try {
                 dateTaken = new Date(dateValue).toISOString();
             } catch {
-                console.log('Date parsing failed for:', dateValue);
+                logger.warn('Date parsing failed for:', dateValue);
             }
         }
 
@@ -71,10 +125,10 @@ export function useExifExtractor(): UseExifExtractorReturn {
             dateTaken,
             gpsLat,
             gpsLng,
-            camera: exif.Model || null,
-            lens: exif.LensModel || null,
-            make: exif.Make || null,
-            model: exif.Model || null,
+            camera: exif.camera || exif.Model || null,
+            lens: exif.lens || exif.LensModel || null,
+            make: exif.make || exif.Make || null,
+            model: exif.model || exif.Model || null,
         };
 
         return {
@@ -83,36 +137,49 @@ export function useExifExtractor(): UseExifExtractorReturn {
             error: null,
             fileName,
         };
-    };
+    }, [finalConfig.allowGpsExtraction]);
 
     const extractExif = async (file: File): Promise<ExifResult> => {
-        const fileType = file.type || 'unknown';
-        console.log(`[${APP_VERSION}] Extracting EXIF from: ${file.name} (${fileType}, ${file.size} bytes)`);
+        // 1. Validation
+        const validationError = validateFile(file);
+        if (validationError) {
+            logger.warn(`Validation failed for ${file.name}: ${validationError}`);
+            return { success: false, data: null, error: validationError, fileName: file.name };
+        }
 
-        // 1. Try native HEIC parsing first (fastest)
+        logger.log(`Extracting EXIF from: ${file.name}`);
+
+        // 2. Try native parsing first
         try {
-            // Read file as ArrayBuffer - exifr natively supports HEIC
             const arrayBuffer = await file.arrayBuffer();
-            console.log('Read as ArrayBuffer. Attempting native parsing...');
 
+            // Only parse what we need for performance & privacy
             const exif = await exifr.parse(arrayBuffer, {
                 tiff: true,
                 exif: true,
-                gps: true,
-                // Add HEIC specific options just in case, though usually auto-detected
-            });
+                gps: finalConfig.allowGpsExtraction, // Opt-in at parsing level
+                ifd0: false, // Performance optimization
+                xmp: false,
+                icc: false,
+                // HEIC specific:
+                mergeOutput: true,
+            } as any);
 
             if (exif) {
-                console.log('Native parsing successful:', exif);
+                logger.log('Native parsing successful');
                 return processExif(exif, file.name);
             }
         } catch (nativeError) {
-            console.warn('Native parsing failed or empty:', nativeError);
+            logger.warn('Native parsing failed:', nativeError);
         }
 
-        // 2. If native parsing failed, fall back to Server-Side API (Most robust)
+        // 3. Server-Side Fallback (Robustness)
+        // Use AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), finalConfig.uploadTimeoutMs);
+
         try {
-            console.log('Attempting fallback: Server-side extraction...');
+            logger.log('Attempting server-side fallback...');
 
             const formData = new FormData();
             formData.append('file', file);
@@ -120,36 +187,41 @@ export function useExifExtractor(): UseExifExtractorReturn {
             const response = await fetch('/api/exif', {
                 method: 'POST',
                 body: formData,
+                signal: controller.signal,
             });
 
             if (!response.ok) {
+                // Mask detailed server errors in UI, log them in dev
                 throw new Error(`Server API error: ${response.status}`);
             }
 
             const result = await response.json();
 
             if (result.success && result.data) {
-                console.log('Server-side parsing successful:', result.data);
-                return {
-                    success: true,
-                    data: result.data,
-                    error: null,
-                    fileName: file.name,
-                };
+                logger.log('Server parsing successful');
+                // processExif handles filtering, but server response format matches ExifData
+                return processExif(result.data, file.name);
             }
-        } catch (serverError) {
-            console.error('Server-side fallback failed:', serverError);
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                return { success: false, data: null, error: '서버 응답 시간이 초과되었습니다.', fileName: file.name };
+            }
+            logger.error('Server fallback error:', error);
+        } finally {
+            clearTimeout(timeoutId);
         }
 
         return {
             success: false,
             data: null,
-            error: '메타데이터를 찾을 수 없습니다 (서버 추출 실패)',
+            error: '정보를 읽을 수 없습니다.',
             fileName: file.name,
         };
     };
 
     const extractFromFiles = useCallback(async (files: File[]): Promise<ExifResult[]> => {
+        if (!files || files.length === 0) return [];
+
         setIsExtracting(true);
         setProgress(0);
         setError(null);
@@ -157,21 +229,22 @@ export function useExifExtractor(): UseExifExtractorReturn {
         const results: ExifResult[] = [];
 
         try {
+            // Process sequentially to avoid overwhelming browser/server
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const result = await extractExif(file);
                 results.push(result);
                 setProgress(((i + 1) / files.length) * 100);
             }
-        } catch (err) {
-            console.error('Extraction loop error:', err);
-            setError(err instanceof Error ? err.message : 'Extraction failed');
+        } catch (err: any) {
+            logger.error('Extraction loop error:', err);
+            setError('일부 파일 처리 중 오류가 발생했습니다.');
         } finally {
             setIsExtracting(false);
         }
 
         return results;
-    }, []);
+    }, [finalConfig]); // Re-create if config changes
 
     return {
         extractFromFiles,
