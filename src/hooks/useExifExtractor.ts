@@ -4,10 +4,11 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import exifr from 'exifr';
+// Import FULL bundle for HEIC support (default import is Lite which only supports JPEG/TIFF)
+import exifr from 'exifr/dist/full.esm.mjs';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.0.8';
+export const APP_VERSION = 'v1.0.9';
 
 export interface ExifData {
     dateTaken: string | null;
