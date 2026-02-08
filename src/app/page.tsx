@@ -199,7 +199,7 @@ export default function Home() {
 
       {/* Version Footer */}
       <div className="fixed bottom-2 right-2 text-[10px] text-slate-700 pointer-events-none">
-        v1.3.9
+        v1.4.0
       </div>
     </div>
   );

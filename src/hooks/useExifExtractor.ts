@@ -8,7 +8,7 @@ import { useState, useCallback, useMemo } from 'react';
 import tz from 'tz-lookup';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.3.9';
+export const APP_VERSION = 'v1.4.0';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
 import { clientLogger } from '@/lib/clientLogger';
