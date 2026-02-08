@@ -438,7 +438,10 @@ export default function NewLogPage() {
                             <h2 className="section-title">{t('logNew.sectionTime')}</h2>
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                                 <div className="col-span-1">
-                                    <label className="field-label">{t('logNew.startTime')} <span className="text-xs font-normal text-slate-400">{t('logNew.localTimeNote')}</span></label>
+                                    <label className="field-label">
+                                        {t('logNew.startTime')}
+                                        <span className="block text-xs font-normal text-slate-500">{t('logNew.localTimeNote')}</span>
+                                    </label>
                                     <input
                                         type="time"
                                         value={commonData.timeStart}
@@ -461,7 +464,10 @@ export default function NewLogPage() {
                                     />
                                 </div>
                                 <div className="col-span-1">
-                                    <label className="field-label">{t('logNew.endTime')} <span className="text-xs font-normal text-slate-400">{t('logNew.localTimeNote')}</span></label>
+                                    <label className="field-label">
+                                        {t('logNew.endTime')}
+                                        <span className="block text-xs font-normal text-slate-500">{t('logNew.localTimeNote')}</span>
+                                    </label>
                                     <input
                                         type="time"
                                         value={commonData.timeEnd}
