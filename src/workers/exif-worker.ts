@@ -25,12 +25,14 @@ export interface ExifResult {
 const exifWorker = {
     async extractExif(file: File): Promise<ExifResult> {
         try {
-            // Performance optimization: only read first 128KB (EXIF data is in file header)
-            const slice = file.slice(0, 131072);
+            // For HEIC files, read the entire file as they store EXIF differently
+            const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+            const fileData = isHeic ? file : file.slice(0, 131072);
 
-            // Parse EXIF data
-            const exif = await exifr.parse(slice, {
-                pick: ['DateTimeOriginal', 'GPSLatitude', 'GPSLongitude', 'Make', 'Model', 'LensModel'],
+            // Parse EXIF data with expanded options for HEIC support
+            const exif = await exifr.parse(fileData, {
+                tiff: true,
+                exif: true,
                 gps: true,
             });
 
@@ -48,7 +50,7 @@ const exifWorker = {
             let gpsLng: number | null = null;
 
             try {
-                const gps = await exifr.gps(slice);
+                const gps = await exifr.gps(fileData);
                 if (gps) {
                     gpsLat = gps.latitude;
                     gpsLng = gps.longitude;
