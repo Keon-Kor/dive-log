@@ -10,6 +10,7 @@ import type { ExifResult } from '@/workers/exif-worker';
 interface PhotoUploaderProps {
     onPhotosProcessed: (results: ExifResult[], files: File[], savePhotos: boolean) => void;
     isLoggedIn?: boolean;
+    onLoginClick?: () => void;
 }
 
 const MAX_PHOTOS = 3;
@@ -18,7 +19,8 @@ type Phase = 'upload' | 'preview' | 'confirmed';
 
 export function PhotoUploader({
     onPhotosProcessed,
-    isLoggedIn = false
+    isLoggedIn = false,
+    onLoginClick
 }: PhotoUploaderProps) {
     const [phase, setPhase] = useState<Phase>('upload');
     const [isDragging, setIsDragging] = useState(false);
@@ -91,7 +93,10 @@ export function PhotoUploader({
     const handleClick = () => fileInputRef.current?.click();
 
     const handleToggleSavePhotos = () => {
-        if (!isLoggedIn) return;
+        if (!isLoggedIn) {
+            onLoginClick?.();
+            return;
+        }
         setSavePhotos(!savePhotos);
     };
 
@@ -294,17 +299,16 @@ export function PhotoUploader({
                                 <p className="text-xs text-slate-400 mt-0.5">
                                     {isLoggedIn
                                         ? "로그북과 함께 압축된 사진을 저장합니다"
-                                        : "로그인하면 사진도 저장할 수 있습니다"
+                                        : "로그인이 필요합니다 (클릭하여 로그인)"
                                     }
                                 </p>
                             </div>
                             <button
                                 onClick={handleToggleSavePhotos}
-                                disabled={!isLoggedIn}
                                 className={`
                                     relative w-12 h-6 rounded-full transition-colors
                                     ${!isLoggedIn
-                                        ? 'bg-slate-700 cursor-not-allowed opacity-50'
+                                        ? 'bg-slate-600 hover:bg-slate-500 cursor-pointer'
                                         : savePhotos ? 'bg-cyan-500' : 'bg-slate-600'
                                     }
                                 `}

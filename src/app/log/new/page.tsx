@@ -30,7 +30,7 @@ interface ExtractedData {
 export default function NewLogPage() {
     const router = useRouter();
     const { createLog } = useDiveLog();
-    const { isLoggedIn, user } = useAuth();
+    const { isLoggedIn, user, signInWithGoogle } = useAuth();
     const [step, setStep] = useState<Step>(1);
     const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
     const [savePhotos, setSavePhotos] = useState(false);
@@ -272,6 +272,7 @@ export default function NewLogPage() {
                         <PhotoUploader
                             onPhotosProcessed={handlePhotosProcessed}
                             isLoggedIn={isLoggedIn}
+                            onLoginClick={signInWithGoogle}
                         />
 
                         <div className="text-center">
