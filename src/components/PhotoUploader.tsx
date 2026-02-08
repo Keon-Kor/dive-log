@@ -42,19 +42,24 @@ export function PhotoUploader({
         // Create preview URLs (with HEIC conversion)
         const urls: string[] = [];
         for (const file of fileArray) {
-            if (file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic')) {
+            const isHeic = file.type === 'image/heic' || file.name.toLowerCase().endsWith('.heic');
+
+            if (isHeic) {
                 try {
                     // Convert HEIC to JPEG blob for preview
-                    const convertedBlob = await heic2any({
+                    const result = await heic2any({
                         blob: file,
                         toType: 'image/jpeg',
-                        quality: 0.5 // Lower quality for thumbnail speed
-                    }) as Blob;
+                        quality: 0.5
+                    });
+
+                    // Handle potential array result
+                    const convertedBlob = Array.isArray(result) ? result[0] : result;
                     urls.push(URL.createObjectURL(convertedBlob));
                 } catch (e) {
                     console.error('HEIC preview conversion failed:', e);
-                    // Fallback to placeholder or original URL (might break in some browsers)
-                    urls.push(URL.createObjectURL(file));
+                    // Push a magic string to indicate error, handled in render
+                    urls.push('HEIC_ERROR');
                 }
             } else {
                 urls.push(URL.createObjectURL(file));
@@ -116,8 +121,13 @@ export function PhotoUploader({
     const handleClick = () => fileInputRef.current?.click();
 
     const handleToggleSavePhotos = (e: React.MouseEvent) => {
-        e.stopPropagation(); // Stop event bubbling
+        e.preventDefault(); // Changed to preventDefault + stopPropagation
+        e.stopPropagation();
+
+        console.log('Toggle clicked. LoggedIn:', isLoggedIn);
+
         if (!isLoggedIn) {
+            console.log('User not logged in, triggering login callback');
             onLoginClick?.();
             return;
         }
@@ -145,9 +155,6 @@ export function PhotoUploader({
                 hour: '2-digit', minute: '2-digit',
                 hour12: true
             });
-            // Append local timezone indication
-            // const timeZoneName = Intl.DateTimeFormat().resolvedOptions().timeZone; // e.g. "Asia/Seoul"
-            // Or just "Local Time" in Korean
             return `${timeStr} (현지 시간)`;
         } catch {
             return '';
@@ -250,7 +257,14 @@ export function PhotoUploader({
                     <div className="grid grid-cols-3 gap-3">
                         {previewUrls.map((url, index) => (
                             <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-slate-800">
-                                <img src={url} alt={`Photo ${index + 1}`} className="w-full h-full object-cover" />
+                                {url === 'HEIC_ERROR' ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-slate-700">
+                                        <span className="text-xs text-slate-400">Preview Failed</span>
+                                        <span className="text-[10px] text-slate-500 mt-1">HEIC</span>
+                                    </div>
+                                ) : (
+                                    <img src={url} alt={`Photo ${index + 1}`} className="w-full h-full object-cover" />
+                                )}
                                 {index === 0 && (
                                     <div className="absolute bottom-2 left-2 px-2 py-1 bg-cyan-500/80 rounded-full text-xs text-white">
                                         최신
