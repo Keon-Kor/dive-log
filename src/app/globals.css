@@ -241,6 +241,11 @@ body {
   /* Allow shrinking in flex/grid */
 }
 
+/* Time inputs need more width for localized formats like "오전 11:12" */
+.field-input[type="time"] {
+  min-width: 140px;
+}
+
 .field-input:focus {
   @apply bg-slate-700 border-cyan-500 ring-1 ring-cyan-500;
 }
