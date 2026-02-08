@@ -1,11 +1,27 @@
 // useExifExtractor Hook
-// Wraps Web Worker communication for EXIF extraction
+// Direct EXIF extraction without Web Worker (more reliable in production)
 
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import * as Comlink from 'comlink';
-import type { ExifWorker, ExifResult } from '@/workers/exif-worker';
+import { useState, useCallback } from 'react';
+import exifr from 'exifr';
+
+export interface ExifData {
+    dateTaken: string | null;
+    gpsLat: number | null;
+    gpsLng: number | null;
+    camera: string | null;
+    lens: string | null;
+    make: string | null;
+    model: string | null;
+}
+
+export interface ExifResult {
+    success: boolean;
+    data: ExifData | null;
+    error: string | null;
+    fileName: string;
+}
 
 interface UseExifExtractorReturn {
     extractFromFiles: (files: File[]) => Promise<ExifResult[]>;
@@ -18,29 +34,85 @@ export function useExifExtractor(): UseExifExtractorReturn {
     const [isExtracting, setIsExtracting] = useState(false);
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
-    const workerRef = useRef<Worker | null>(null);
-    const workerApiRef = useRef<Comlink.Remote<ExifWorker> | null>(null);
 
-    // Initialize worker
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            workerRef.current = new Worker(
-                new URL('@/workers/exif-worker.ts', import.meta.url)
-            );
-            workerApiRef.current = Comlink.wrap<ExifWorker>(workerRef.current);
+    const extractExif = async (file: File): Promise<ExifResult> => {
+        try {
+            console.log('Extracting EXIF from:', file.name, file.type);
+
+            // Parse EXIF data - use full file for better compatibility
+            const exif = await exifr.parse(file, {
+                tiff: true,
+                exif: true,
+                gps: true,
+            });
+
+            console.log('EXIF result:', exif);
+
+            if (!exif) {
+                return {
+                    success: false,
+                    data: null,
+                    error: 'No EXIF data found',
+                    fileName: file.name,
+                };
+            }
+
+            // Extract GPS coordinates
+            let gpsLat: number | null = null;
+            let gpsLng: number | null = null;
+
+            try {
+                const gps = await exifr.gps(file);
+                console.log('GPS result:', gps);
+                if (gps) {
+                    gpsLat = gps.latitude;
+                    gpsLng = gps.longitude;
+                }
+            } catch (gpsError) {
+                console.log('GPS extraction failed:', gpsError);
+            }
+
+            // Get date - try multiple fields
+            let dateTaken: string | null = null;
+            const dateValue = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+            if (dateValue) {
+                try {
+                    dateTaken = new Date(dateValue).toISOString();
+                } catch {
+                    console.log('Date parsing failed for:', dateValue);
+                }
+            }
+
+            const data: ExifData = {
+                dateTaken,
+                gpsLat,
+                gpsLng,
+                camera: exif.Model || null,
+                lens: exif.LensModel || null,
+                make: exif.Make || null,
+                model: exif.Model || null,
+            };
+
+            console.log('Extracted data:', data);
+
+            return {
+                success: true,
+                data,
+                error: null,
+                fileName: file.name,
+            };
+        } catch (err) {
+            console.error('EXIF extraction error:', err);
+            return {
+                success: false,
+                data: null,
+                error: err instanceof Error ? err.message : 'Unknown error',
+                fileName: file.name,
+            };
         }
-
-        return () => {
-            workerRef.current?.terminate();
-        };
-    }, []);
+    };
 
     const extractFromFiles = useCallback(async (files: File[]): Promise<ExifResult[]> => {
-        if (!workerApiRef.current) {
-            setError('Worker not initialized');
-            return [];
-        }
-
         setIsExtracting(true);
         setProgress(0);
         setError(null);
@@ -50,11 +122,12 @@ export function useExifExtractor(): UseExifExtractorReturn {
         try {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const result = await workerApiRef.current.extractExif(file);
+                const result = await extractExif(file);
                 results.push(result);
                 setProgress(((i + 1) / files.length) * 100);
             }
         } catch (err) {
+            console.error('Extraction loop error:', err);
             setError(err instanceof Error ? err.message : 'Extraction failed');
         } finally {
             setIsExtracting(false);
