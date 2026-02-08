@@ -9,7 +9,9 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PhotoUploader } from '@/components/PhotoUploader';
+import { LoginButton } from '@/components/LoginButton';
 import { useDiveLog } from '@/hooks/useDiveLog';
+import { useAuth } from '@/hooks/useAuth';
 import { findNearestDiveSite, type DiveSite } from '@/lib/dive-sites';
 import type { ExifResult } from '@/workers/exif-worker';
 import type { DiveLogFormData, WeatherIcon, EntryMethod, TankMaterial, TankConfig, GasMix } from '@/lib/types';
@@ -28,6 +30,7 @@ interface ExtractedData {
 export default function NewLogPage() {
     const router = useRouter();
     const { createLog } = useDiveLog();
+    const { isLoggedIn, user } = useAuth();
     const [step, setStep] = useState<Step>(1);
     const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
     const [savePhotos, setSavePhotos] = useState(false);
@@ -36,9 +39,6 @@ export default function NewLogPage() {
     const [shareUrlCopied, setShareUrlCopied] = useState(false);
     const [matchedSite, setMatchedSite] = useState<DiveSite | null>(null);
     const [siteSuggestions, setSiteSuggestions] = useState<DiveSite[]>([]);
-
-    // TODO: Replace with actual auth check
-    const isLoggedIn = false;
 
     // Form State - Step 2 (Common/Shareable)
     const [commonData, setCommonData] = useState({

@@ -290,7 +290,7 @@ export function PhotoUploader({
                     <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-xl">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-white text-sm font-medium">📷 사진도 함께 저장하기</p>
+                                <p className="text-white text-sm font-medium">📷 로그북에 사진도 함께 저장하기</p>
                                 <p className="text-xs text-slate-400 mt-0.5">
                                     {isLoggedIn
                                         ? "로그북과 함께 압축된 사진을 저장합니다"
