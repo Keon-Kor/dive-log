@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import exifr from 'exifr/dist/full.esm.mjs';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.1.0';
+export const APP_VERSION = 'v1.2.0';
 
 export interface ExifData {
     dateTaken: string | null;
@@ -110,45 +110,41 @@ export function useExifExtractor(): UseExifExtractorReturn {
             console.warn('Native parsing failed or empty:', nativeError);
         }
 
-        // 2. If native parsing failed AND it is a HEIC file, try converting to JPEG
-        // This is a fallback for when exifr's native parser fails on specific HEIC encodings
-        if (isHeicFile(file)) {
-            try {
-                console.log('Attempting fallback: HEIC to JPEG conversion...');
-                // Dynamic import heic2any
-                const heic2any = (await import('heic2any')).default;
+        // 2. If native parsing failed, fall back to Server-Side API (Most robust)
+        try {
+            console.log('Attempting fallback: Server-side extraction...');
 
-                const result = await heic2any({
-                    blob: file,
-                    toType: 'image/jpeg',
-                    quality: 0.5, // We only need metadata, speed is priority
-                });
+            const formData = new FormData();
+            formData.append('file', file);
 
-                const jpegBlob = Array.isArray(result) ? result[0] : result;
-                console.log('Conversion successful. Parsing converted JPEG...');
+            const response = await fetch('/api/exif', {
+                method: 'POST',
+                body: formData,
+            });
 
-                const arrayBuffer = await jpegBlob.arrayBuffer();
-                const exif = await exifr.parse(arrayBuffer);
+            if (!response.ok) {
+                throw new Error(`Server API error: ${response.status}`);
+            }
 
-                if (exif) {
-                    console.log('JPEG parsing successful');
-                    return processExif(exif, file.name);
-                }
-            } catch (conversionError) {
-                console.error('Fallback conversion failed:', conversionError);
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                console.log('Server-side parsing successful:', result.data);
                 return {
-                    success: false,
-                    data: null,
-                    error: 'HEIC 파일 형식을 읽을 수 없습니다. JPEG로 변환하여 업로드해주세요.',
+                    success: true,
+                    data: result.data,
+                    error: null,
                     fileName: file.name,
                 };
             }
+        } catch (serverError) {
+            console.error('Server-side fallback failed:', serverError);
         }
 
         return {
             success: false,
             data: null,
-            error: '메타데이터를 찾을 수 없습니다',
+            error: '메타데이터를 찾을 수 없습니다 (서버 추출 실패)',
             fileName: file.name,
         };
     };
