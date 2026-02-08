@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { useDiveLog } from '@/hooks/useDiveLog';
+import { findNearestDiveSite, type DiveSite } from '@/lib/dive-sites';
 import type { ExifResult } from '@/workers/exif-worker';
 import type { DiveLogFormData, WeatherIcon, EntryMethod, TankMaterial, TankConfig, GasMix } from '@/lib/types';
 
@@ -33,6 +34,8 @@ export default function NewLogPage() {
     const [savedLogId, setSavedLogId] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [shareUrlCopied, setShareUrlCopied] = useState(false);
+    const [matchedSite, setMatchedSite] = useState<DiveSite | null>(null);
+    const [siteSuggestions, setSiteSuggestions] = useState<DiveSite[]>([]);
 
     // TODO: Replace with actual auth check
     const isLoggedIn = false;
@@ -124,6 +127,16 @@ export default function NewLogPage() {
 
             setExtractedData(extracted);
 
+            // Auto-match dive site from GPS
+            let autoMatchedSite: DiveSite | null = null;
+            if (extracted.gpsLat && extracted.gpsLng) {
+                const matchResult = findNearestDiveSite(extracted.gpsLat, extracted.gpsLng, 10000); // 10km radius
+                if (matchResult) {
+                    autoMatchedSite = matchResult.site;
+                    setMatchedSite(matchResult.site);
+                }
+            }
+
             // Pre-fill common data
             setCommonData(prev => ({
                 ...prev,
@@ -131,6 +144,9 @@ export default function NewLogPage() {
                 timeStart: extracted.timeStart,
                 timeEnd: extracted.timeEnd,
                 divingTime: extracted.divingTime,
+                // Auto-fill from matched site
+                diveSiteName: autoMatchedSite?.name || '',
+                country: autoMatchedSite?.country || '',
             }));
 
             setStep(2);
@@ -277,6 +293,26 @@ export default function NewLogPage() {
                                 🌊 다른 다이버와 공유할 수 있는 정보입니다
                             </p>
                         </div>
+
+                        {/* Auto-matched Site Banner */}
+                        {matchedSite && (
+                            <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-xl">📍</span>
+                                    <div>
+                                        <p className="text-sm text-green-300 font-medium">
+                                            GPS 기반 자동 매칭됨
+                                        </p>
+                                        <p className="text-lg text-white font-semibold">
+                                            {matchedSite.name} {matchedSite.nameLocal && `(${matchedSite.nameLocal})`}
+                                        </p>
+                                        <p className="text-xs text-slate-400">
+                                            {matchedSite.region}, {matchedSite.country}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Diving Site */}
                         <section className="logbook-section">
