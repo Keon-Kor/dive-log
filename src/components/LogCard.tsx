@@ -81,6 +81,12 @@ export function LogCard({ log, onClick }: LogCardProps) {
 
                 {/* Stats */}
                 <div className="flex items-center gap-4 text-sm font-medium">
+                    {log.timeStart && (
+                        <div className="flex items-center gap-1.5 text-toss-grey-300">
+                            <span className="text-toss-blue">🕐</span>
+                            <span>{log.timeStart}</span>
+                        </div>
+                    )}
                     {log.maxDepth && (
                         <div className="flex items-center gap-1.5 text-toss-grey-300">
                             <span className="text-toss-blue">↓</span>
