@@ -43,7 +43,19 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <span className="text-xl">🤿</span>
+              {/* Scuba Regulator Icon */}
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="#FCD34D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Second stage (mouthpiece) */}
+                <circle cx="16" cy="14" r="5" fill="#1F2937" stroke="#FCD34D" />
+                <path d="M21 14h-2" stroke="#FCD34D" />
+                {/* Hose */}
+                <path d="M11 14C8 14 6 12 4 12" stroke="#FCD34D" strokeWidth="2.5" />
+                <path d="M4 12C2 12 1 10 1 8" stroke="#FCD34D" strokeWidth="2.5" />
+                {/* First stage connector */}
+                <circle cx="2" cy="6" r="2" fill="#1F2937" stroke="#FCD34D" />
+                {/* Purge button */}
+                <circle cx="16" cy="14" r="2" fill="#FCD34D" />
+              </svg>
             </div>
             <div>
               <h1 className="text-xl font-bold gradient-text">DiveSnap</h1>

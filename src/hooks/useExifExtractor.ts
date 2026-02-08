@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import exifr from 'exifr';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.0.5';
+export const APP_VERSION = 'v1.0.6';
 
 export interface ExifData {
     dateTaken: string | null;
