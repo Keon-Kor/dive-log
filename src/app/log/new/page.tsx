@@ -12,8 +12,8 @@ import { PhotoUploader } from '@/components/PhotoUploader';
 import { LoginButton } from '@/components/LoginButton';
 import { useDiveLog } from '@/hooks/useDiveLog';
 import { useAuth } from '@/hooks/useAuth';
+import { APP_VERSION, type ExifResult } from '@/hooks/useExifExtractor';
 import { findNearestDiveSite, type DiveSite } from '@/lib/dive-sites';
-import type { ExifResult } from '@/workers/exif-worker';
 import type { DiveLogFormData, WeatherIcon, EntryMethod, TankMaterial, TankConfig, GasMix } from '@/lib/types';
 
 type Step = 1 | 2 | 3 | 4; // 4 = complete
@@ -914,6 +914,11 @@ export default function NewLogPage() {
                     </div>
                 </div>
             )}
+
+            {/* Version Footer */}
+            <div className="fixed bottom-2 right-2 text-xs text-slate-600">
+                {APP_VERSION}
+            </div>
         </div>
     );
 }
