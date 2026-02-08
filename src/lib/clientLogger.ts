@@ -3,7 +3,7 @@ interface LogPayload {
     level: 'info' | 'warn' | 'error';
     message: string;
     component?: string;
-    data?: any;
+    data?: unknown;
     url?: string;
     userAgent?: string;
 }
@@ -11,9 +11,9 @@ interface LogPayload {
 const IS_DEV = process.env.NODE_ENV === 'development';
 
 export const clientLogger = {
-    info: (message: string, data?: any) => log('info', message, data),
-    warn: (message: string, data?: any) => log('warn', message, data),
-    error: (message: string, error?: any, component?: string) => {
+    info: (message: string, data?: unknown) => log('info', message, data),
+    warn: (message: string, data?: unknown) => log('warn', message, data),
+    error: (message: string, error?: unknown, component?: string) => {
         // Safe error serialization
         const errorData = error instanceof Error ? {
             name: error.name,
@@ -25,7 +25,7 @@ export const clientLogger = {
     },
 };
 
-async function log(level: LogPayload['level'], message: string, data?: any, component?: string) {
+async function log(level: LogPayload['level'], message: string, data?: unknown, component?: string) {
     // 1. Always log to console in Dev
     if (IS_DEV) {
         console[level](`[${component || 'Client'}] ${message}`, data);

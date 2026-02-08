@@ -85,7 +85,7 @@ async function getLog(id: string) {
         isSynced: true,
 
         // Photos
-        photos: logData.dive_photos?.map((p: any) => ({
+        photos: logData.dive_photos?.map((p: { id: string; thumbnail_url: string }) => ({
             id: p.id,
             thumbnailUrl: p.thumbnail_url,
             exifExtracted: true,

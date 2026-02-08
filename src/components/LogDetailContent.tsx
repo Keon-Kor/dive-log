@@ -101,7 +101,7 @@ export function LogDetailContent({ log }: LogDetailContentProps) {
                     <section className="space-y-3">
                         <h2 className="text-h3">{t('logDetail.photos')}</h2>
                         <div className="flex overflow-x-auto gap-3 pb-2 -mx-5 px-5 scrollbar-hide snap-x">
-                            {log.photos.map((photo: any) => (
+                            {log.photos.map((photo) => (
                                 <div key={photo.id} className="flex-none w-64 aspect-[4/3] relative rounded-2xl overflow-hidden bg-slate-800 snap-center shadow-lg">
                                     <img
                                         src={photo.thumbnailUrl}

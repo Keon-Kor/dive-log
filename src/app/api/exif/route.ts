@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import exifr from 'exifr';
+// @ts-expect-error - tz-lookup lacks typings
+import tz from 'tz-lookup';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +13,8 @@ export async function POST(request: NextRequest) {
         let formData;
         try {
             formData = await request.formData();
-        } catch (e: any) {
+        } catch (error: unknown) {
+            const e = error as Error;
             console.error('[API Error] FormData parsing failed:', e);
             throw new Error(`FormData parsing failed: ${e.message}`);
         }
@@ -31,7 +34,8 @@ export async function POST(request: NextRequest) {
         let metadata;
         try {
             metadata = await sharp(buffer).metadata();
-        } catch (e: any) {
+        } catch (error: unknown) {
+            const e = error as Error;
             console.error('[API Error] Sharp metadata extraction failed:', e);
             // Specific handling for unsupported format
             if (e.message.includes('heif') || e.message.includes('heic') || e.message.includes('unsupported')) {
@@ -90,7 +94,6 @@ export async function POST(request: NextRequest) {
         // Timezone Lookup
         if (gpsLat && gpsLng) {
             try {
-                const tz = require('tz-lookup');
                 timezone = tz(gpsLat, gpsLng);
                 console.log(`[API] Timezone lookup: ${timezone}`);
             } catch (e) {
@@ -140,9 +143,6 @@ export async function POST(request: NextRequest) {
             const dateValue = exif.dateTaken || exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
             if (dateValue) {
                 try {
-                    // Critical Fix: Do NOT use .toISOString()!
-                    // If it's a string from EXIF, it's already "wall clock".
-                    // If it's a Date object, .toLocaleString('sv-SE') gives wall clock.
                     const d = new Date(dateValue);
                     dateTaken = d.toLocaleString('sv-SE').replace(' ', 'T');
                     console.log(`[API] Date from fallback: ${dateTaken}`);
@@ -165,10 +165,11 @@ export async function POST(request: NextRequest) {
         console.log('[API Success] Returning data');
         return NextResponse.json({ success: true, data });
 
-    } catch (error: any) {
-        console.error('[API Critical Error] Stack:', error.stack);
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error('[API Critical Error] Stack:', err.stack);
         return NextResponse.json(
-            { error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
+            { error: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined },
             { status: 500 }
         );
     }

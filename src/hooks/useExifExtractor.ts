@@ -3,8 +3,8 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
-// @ts-ignore
+import { useState, useCallback, useMemo } from 'react';
+// @ts-expect-error - tz-lookup lacks typings
 import tz from 'tz-lookup';
 
 // App version for deployment verification
@@ -17,9 +17,9 @@ const LOG_PREFIX = '[ExifExtractor]';
 
 // Safe Logger Wrapper
 const logger = {
-    log: (msg: string, ...args: any[]) => IS_DEV && console.log(`${LOG_PREFIX} ${msg}`, ...args),
-    warn: (msg: string, ...args: any[]) => IS_DEV && console.warn(`${LOG_PREFIX} ${msg}`, ...args),
-    error: (msg: string, ...args: any[]) => {
+    log: (msg: string, ...args: unknown[]) => IS_DEV && console.log(`${LOG_PREFIX} ${msg}`, ...args),
+    warn: (msg: string, ...args: unknown[]) => IS_DEV && console.warn(`${LOG_PREFIX} ${msg}`, ...args),
+    error: (msg: string, ...args: unknown[]) => {
         // Log to console in dev
         if (IS_DEV) console.error(`${LOG_PREFIX} ${msg}`, ...args);
         // Send to server in production
@@ -68,14 +68,20 @@ const DEFAULT_CONFIG: Required<UseExifExtractorConfig> = {
 
 export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifExtractorReturn {
     // Merge validation config
-    const finalConfig = { ...DEFAULT_CONFIG, ...config };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const finalConfig = useMemo(() => ({ ...DEFAULT_CONFIG, ...config }), [
+        config.allowGpsExtraction,
+        config.allowedTypes,
+        config.maxFileSizeMB,
+        config.uploadTimeoutMs
+    ]);
 
     const [isExtracting, setIsExtracting] = useState(false);
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
     // Security: Validate file before processing
-    const validateFile = (file: File): string | null => {
+    const validateFile = useCallback((file: File): string | null => {
         // 1. Type Check (Whitelist)
         // Check both MIME type and extension for robustness
         const fileType = file.type.toLowerCase();
@@ -96,10 +102,13 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         }
 
         return null;
-    };
+    }, [finalConfig.allowedTypes, finalConfig.maxFileSizeMB]);
 
     // Helper to process EXIF data into our format
-    const processExif = useCallback((exif: any, fileName: string): ExifResult => {
+    const processExif = useCallback((exifData: Record<string, unknown>, fileName: string): ExifResult => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const exif = exifData as any;
+
         // Extract GPS coordinates ONLY if allowed
         let gpsLat: number | null = null;
         let gpsLng: number | null = null;
@@ -130,16 +139,6 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         }
 
         // Prioritize original date
-        // Note: exif.DateTimeOriginal is usually "Camera Clock Time".
-        // If we have GPS timestamp (UTC), we could calculate exact local time,
-        // but often Camera Time is what users expect if they updated their clock.
-        // HOWEVER, if the user says "It shows invalid time (my home time)", it means
-        // the date object is being converted to browser time.
-        // We should store the "Date String" as is, OR strictly use GPS UTC.
-
-        // Strategy: Use GPS Date/Time if available (as UTC), then convert to Local Time of that location.
-        // If not, fall back to DateTimeOriginal (Camera Time).
-
         const gpsDate = exif.GPSDateStamp; // "2023:01:01" or "2023-01-01"
         const gpsTime = exif.GPSTimeStamp; // [h, m, s] or string
 
@@ -172,7 +171,6 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
                     const utcDate = new Date(Date.UTC(year, month, day, hour, minute, second));
 
                     // Convert to Target Timezone using native toLocaleString
-                    // sv-SE gives ISO-like format YYYY-MM-DD hh:mm:ss
                     dateTaken = utcDate.toLocaleString('sv-SE', { timeZone: timezone }).replace(' ', 'T');
                     logger.log('Date calculated from GPS UTC:', dateTaken, 'Timezone:', timezone);
                 }
@@ -186,15 +184,9 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
             const dateValue = exif.dateTaken || exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
             if (dateValue) {
                 try {
-                    // Critical Fix: If it's a Date object, exifr might have already shifted it to browser timezone!
-                    // Convert it back to localized ISO string without using toISOString() which shifts to UTC.
                     const d = new Date(dateValue);
 
                     if (timezone) {
-                        // If we have timezone but GPS time was missing, 
-                        // attempt to show wall clock time as it appeared in the camera, 
-                        // but specifically NOT shifted by browser timezone.
-                        // sv-SE + timezone option is the most reliable way to say "treat this UTC-less date as TARGET-TZ local".
                         dateTaken = d.toLocaleString('sv-SE', { timeZone: timezone }).replace(' ', 'T');
                         logger.log('Date calculated from Wall Clock + Timezone:', dateTaken);
                     } else {
@@ -208,7 +200,7 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         }
 
         const data: ExifData = {
-            dateTaken, // Now strictly YYYY-MM-DDTHH:mm:ss (Wall Clock)
+            dateTaken,
             gpsLat,
             gpsLng,
             camera: exif.camera || exif.Model || null,
@@ -225,7 +217,7 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         };
     }, [finalConfig.allowGpsExtraction]);
 
-    const extractExif = async (file: File): Promise<ExifResult> => {
+    const extractExif = useCallback(async (file: File): Promise<ExifResult> => {
         // 1. Validation
         const validationError = validateFile(file);
         if (validationError) {
@@ -247,13 +239,12 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
             const exif = await exifr.parse(arrayBuffer, {
                 tiff: true,
                 exif: true,
-                gps: finalConfig.allowGpsExtraction, // Opt-in at parsing level
-                ifd0: false, // Performance optimization
+                gps: finalConfig.allowGpsExtraction,
+                ifd0: false,
                 xmp: false,
                 icc: false,
-                // HEIC specific:
                 mergeOutput: true,
-            } as any);
+            } as Record<string, unknown>);
 
             if (exif) {
                 logger.log('Native parsing successful');
@@ -264,7 +255,6 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         }
 
         // 3. Server-Side Fallback (Robustness)
-        // Use AbortController for timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), finalConfig.uploadTimeoutMs);
 
@@ -281,7 +271,6 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
             });
 
             if (!response.ok) {
-                // Mask detailed server errors in UI, log them in dev
                 throw new Error(`Server API error: ${response.status}`);
             }
 
@@ -289,14 +278,14 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
 
             if (result.success && result.data) {
                 logger.log('Server parsing successful');
-                // processExif handles filtering, but server response format matches ExifData
                 return processExif(result.data, file.name);
             }
-        } catch (error: any) {
-            if (error.name === 'AbortError') {
+        } catch (error: unknown) {
+            const err = error as Error;
+            if (err.name === 'AbortError') {
                 return { success: false, data: null, error: '서버 응답 시간이 초과되었습니다.', fileName: file.name };
             }
-            logger.error('Server fallback error:', error);
+            logger.error('Server fallback error:', err);
         } finally {
             clearTimeout(timeoutId);
         }
@@ -307,7 +296,7 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
             error: '정보를 읽을 수 없습니다.',
             fileName: file.name,
         };
-    };
+    }, [finalConfig.allowGpsExtraction, finalConfig.uploadTimeoutMs, processExif, validateFile]);
 
     const extractFromFiles = useCallback(async (files: File[]): Promise<ExifResult[]> => {
         if (!files || files.length === 0) return [];
@@ -319,14 +308,13 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         const results: ExifResult[] = [];
 
         try {
-            // Process sequentially to avoid overwhelming browser/server
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const result = await extractExif(file);
                 results.push(result);
                 setProgress(((i + 1) / files.length) * 100);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             logger.error('Extraction loop error:', err);
             setError('일부 파일 처리 중 오류가 발생했습니다.');
         } finally {
@@ -334,7 +322,7 @@ export function useExifExtractor(config: UseExifExtractorConfig = {}): UseExifEx
         }
 
         return results;
-    }, [finalConfig]); // Re-create if config changes
+    }, [extractExif]);
 
     return {
         extractFromFiles,

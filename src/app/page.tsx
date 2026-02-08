@@ -11,19 +11,21 @@ import { LogCard } from '@/components/LogCard';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
+const MapLoading = () => {
+  const { t } = useLanguage();
+  return (
+    <div className="h-[400px] bg-slate-800/50 rounded-2xl animate-pulse flex items-center justify-center">
+      <p className="text-slate-400">{t('home.loadingMap')}</p>
+    </div>
+  );
+};
+
 // Dynamic import for map (no SSR)
 const DiveMap = dynamic(
   () => import('@/components/DiveMap').then(mod => ({ default: mod.DiveMap })),
   {
     ssr: false,
-    loading: () => {
-      const { t } = useLanguage();
-      return (
-        <div className="h-[400px] bg-slate-800/50 rounded-2xl animate-pulse flex items-center justify-center">
-          <p className="text-slate-400">{t('home.loadingMap')}</p>
-        </div>
-      );
-    }
+    loading: MapLoading
   }
 );
 
@@ -197,7 +199,7 @@ export default function Home() {
 
       {/* Version Footer */}
       <div className="fixed bottom-2 right-2 text-[10px] text-slate-700 pointer-events-none">
-        v1.3.8
+        v1.3.9
       </div>
     </div>
   );

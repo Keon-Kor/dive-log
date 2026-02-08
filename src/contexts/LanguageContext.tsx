@@ -12,14 +12,13 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-    const [language, setLanguageState] = useState<Language>('ko');
-
-    useEffect(() => {
-        const saved = localStorage.getItem('language') as Language;
-        if (saved && (saved === 'ko' || saved === 'en')) {
-            setLanguageState(saved);
+    const [language, setLanguageState] = useState<Language>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('language') as Language;
+            return (saved === 'ko' || saved === 'en') ? saved : 'ko';
         }
-    }, []);
+        return 'ko';
+    });
 
     const setLanguage = (lang: Language) => {
         setLanguageState(lang);
@@ -28,17 +27,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
     const t = (path: string) => {
         const keys = path.split('.');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let current: any = translations[language];
 
         for (const key of keys) {
-            if (current[key] === undefined) {
+            if (!current || typeof current !== 'object' || current[key] === undefined) {
                 console.warn(`Translation key not found: ${path} for language ${language}`);
                 return path;
             }
             current = current[key];
         }
 
-        return current;
+        return typeof current === 'string' ? current : path;
     };
 
     return (

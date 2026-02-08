@@ -1,0 +1,51 @@
+
+> dive-log@0.1.0 lint
+> eslint
+
+
+C:\Users\keonh\02_Antigravity\dive-log\src\app\api\exif\route.ts
+   14:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   34:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   93:28  error  A `require()` style import is forbidden   @typescript-eslint/no-require-imports
+  168:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\keonh\02_Antigravity\dive-log\src\app\log\[id]\page.tsx
+  88:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\keonh\02_Antigravity\dive-log\src\app\log\new\page.tsx
+  12:10  warning  'findNearestDiveSite' is defined but never used  @typescript-eslint/no-unused-vars
+  14:10  warning  'LoginButton' is defined but never used          @typescript-eslint/no-unused-vars
+  33:11  warning  'router' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  35:25  warning  'user' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\keonh\02_Antigravity\dive-log\src\app\page.tsx
+  20:21  error  React Hook "useLanguage" is called in function "loading" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+
+C:\Users\keonh\02_Antigravity\dive-log\src\components\DiveMap.tsx
+   13:7  warning  'defaultIcon' is assigned a value but never used                                                      @typescript-eslint/no-unused-vars
+  142:6  warning  React Hook useEffect has a missing dependency: 't'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\keonh\02_Antigravity\dive-log\src\components\LogCard.tsx
+  27:11  warning  'renderRating' is assigned a value but never used                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  56:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\keonh\02_Antigravity\dive-log\src\components\LogDetailContent.tsx
+  104:53  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  106:37  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\keonh\02_Antigravity\dive-log\src\components\LogbookForm.tsx
+  6:20  warning  'useEffect' is defined but never used           @typescript-eslint/no-unused-vars
+  7:92  warning  'EquipmentChecklist' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\keonh\02_Antigravity\dive-log\src\components\LoginButton.tsx
+  28:29  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\keonh\02_Antigravity\dive-log\src\components\PhotoUploader.tsx
+   98:8   warning  React Hook useCallback has a duplicate dependency: 'extractFromFiles'. Either omit it or remove the dependency array                                                                                                                                                                     react-hooks/exhaustive-deps
+  296:37  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\keonh\02_Antigravity\dive-log\src\contexts\LanguageContext.tsx
+  3:54  warning  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 22 problems (7 errors, 15 warnings)
+

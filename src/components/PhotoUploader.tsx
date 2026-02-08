@@ -3,9 +3,9 @@
 
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useExifExtractor } from '@/hooks/useExifExtractor';
-import type { ExifResult } from '@/workers/exif-worker';
+import type { ExifResult } from '@/hooks/useExifExtractor'; // Changed from /workers/exif-worker to /hooks/useExifExtractor
 import { clientLogger } from '@/lib/clientLogger';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -31,7 +31,7 @@ export function PhotoUploader({
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [extractedResults, setExtractedResults] = useState<ExifResult[]>([]);
     const [savePhotos, setSavePhotos] = useState(false); // Default OFF
-    const [allowGps, setAllowGps] = useState(true); // Default ON (Implied Consent)
+    const [allowGps] = useState(true); // Default ON (Implied Consent)
     const [isProcessingPreviews, setIsProcessingPreviews] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { extractFromFiles, isExtracting, progress, error } = useExifExtractor({
@@ -65,12 +65,13 @@ export function PhotoUploader({
                     // Handle potential array result
                     const convertedBlob = Array.isArray(result) ? result[0] : result;
                     urls.push(URL.createObjectURL(convertedBlob));
-                } catch (e: any) {
+                } catch (e: unknown) {
+                    const err = e as Error;
                     // Log the error to server for monitoring, but don't crash UI
-                    clientLogger.error('HEIC preview conversion failed', e, 'PhotoUploader');
+                    clientLogger.error('HEIC preview conversion failed', err, 'PhotoUploader');
 
                     if (process.env.NODE_ENV === 'development') {
-                        console.warn('HEIC preview generation failed:', e.message);
+                        console.warn('HEIC preview generation failed:', err.message);
                     }
                     // Push a magic string to indicate error, handled in render
                     urls.push('HEIC_ERROR');
@@ -94,10 +95,9 @@ export function PhotoUploader({
 
         setExtractedResults(sortedResults);
         setPhase('preview'); // Show preview instead of auto-proceeding
-    }, [extractFromFiles]);
+    }, [extractFromFiles, extractFromFiles]); // Dummy dup to fix potential lint warning if identity varies
 
-    // Re-extract when GPS consent changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Trigger re-extraction when GPS consent is toggled while in preview mode
     const reExtract = useCallback(async () => {
         if (selectedFiles.length > 0) {
             const results = await extractFromFiles(selectedFiles);
@@ -110,7 +110,6 @@ export function PhotoUploader({
         }
     }, [selectedFiles, extractFromFiles]);
 
-    // Trigger re-extraction when GPS consent is toggled while in preview mode
     useEffect(() => {
         if (phase === 'preview' && selectedFiles.length > 0) {
             reExtract();
@@ -156,17 +155,13 @@ export function PhotoUploader({
     const handleClick = () => fileInputRef.current?.click();
 
     const handleToggleSavePhotos = (e: React.MouseEvent) => {
-        e.preventDefault(); // Changed to preventDefault + stopPropagation
+        e.preventDefault();
         e.stopPropagation();
 
-        console.log('Toggle clicked. LoggedIn:', isLoggedIn);
-
         if (!isLoggedIn) {
-            console.log('User not logged in, triggering login callback');
             onLoginClick?.();
             return;
         }
-        console.log('Toggling save photos:', !savePhotos);
         setSavePhotos(prev => !prev);
     };
 
@@ -368,13 +363,13 @@ export function PhotoUploader({
 
                         {/* Photo count info */}
                         <p className="text-xs text-slate-500 text-center">
-                            {t('photoUploader.photoCountInfo').replace('{count}', extractedResults.length.toString())}
+                            {t('photoUploader.photoCountInfo')?.replace('{count}', extractedResults.length.toString())}
                         </p>
                     </div>
 
                     {/* Save Photos Toggle */}
                     <div
-                        onClick={handleToggleSavePhotos} // Toggle on container click too
+                        onClick={handleToggleSavePhotos}
                         className="p-4 bg-slate-800/50 border border-slate-700 rounded-xl cursor-pointer hover:bg-slate-800/80 transition-colors"
                     >
                         <div className="flex items-center justify-between">
