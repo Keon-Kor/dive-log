@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import exifr from 'exifr/dist/full.esm.mjs';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.0.9';
+export const APP_VERSION = 'v1.1.0';
 
 export interface ExifData {
     dateTaken: string | null;
