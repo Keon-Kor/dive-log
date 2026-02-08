@@ -5,12 +5,22 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// Dummy subscription for fallback
+const dummySubscription = {
+    unsubscribe: () => { },
+};
+
 // Create a dummy client if no URL is provided (for build time)
 export const supabase: SupabaseClient = supabaseUrl
     ? createClient(supabaseUrl, supabaseAnonKey)
     : {
         from: () => ({ select: () => ({ order: () => Promise.resolve({ data: null, error: null }) }) }),
-        auth: { getSession: () => Promise.resolve({ data: null, error: null }) },
+        auth: {
+            getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+            onAuthStateChange: () => ({ data: { subscription: dummySubscription } }),
+            signInWithOAuth: () => Promise.resolve({ data: null, error: null }),
+            signOut: () => Promise.resolve({ error: null }),
+        },
     } as unknown as SupabaseClient;
 
 // Database types (will be auto-generated from Supabase schema later)
