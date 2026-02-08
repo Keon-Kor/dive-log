@@ -234,9 +234,11 @@ body {
 
 /* Logbook Specific Styles */
 .field-input {
-  @apply w-full bg-slate-800 border border-transparent rounded-xl px-4 py-3 text-white placeholder-slate-500 transition-all outline-none;
+  @apply w-full bg-slate-800 border border-transparent rounded-xl px-3 sm:px-4 py-3 text-white placeholder-slate-500 transition-all outline-none;
   height: 52px;
   font-size: 16px;
+  min-width: 0;
+  /* Allow shrinking in flex/grid */
 }
 
 .field-input:focus {
@@ -252,7 +254,7 @@ body {
 }
 
 .logbook-section {
-  @apply bg-slate-900/50 rounded-2xl p-6 border border-slate-800/50;
+  @apply bg-slate-900/50 rounded-2xl p-4 sm:p-6 border border-slate-800/50 overflow-hidden;
 }
 
 .input-group {
