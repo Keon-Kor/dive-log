@@ -29,9 +29,12 @@ export function PhotoUploader({
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [extractedResults, setExtractedResults] = useState<ExifResult[]>([]);
     const [savePhotos, setSavePhotos] = useState(false); // Default OFF
+    const [allowGps, setAllowGps] = useState(false); // Default OFF (Privacy Opt-in)
     const [isProcessingPreviews, setIsProcessingPreviews] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { extractFromFiles, isExtracting, progress, error } = useExifExtractor();
+    const { extractFromFiles, isExtracting, progress, error } = useExifExtractor({
+        allowGpsExtraction: allowGps
+    });
 
     // Extract EXIF and show preview
     const handleFiles = useCallback(async (files: FileList | File[]) => {
@@ -240,6 +243,26 @@ export function PhotoUploader({
                                 <p className="text-xs text-slate-500">JPEG, PNG, HEIC 지원 • 최대 {MAX_PHOTOS}장</p>
                             </div>
                         )}
+                    </div>
+
+                    {/* GPS Consent Checkbox */}
+                    <div
+                        className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700 cursor-pointer hover:bg-slate-800 transition-colors"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setAllowGps(!allowGps);
+                        }}
+                    >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${allowGps ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>
+                            {allowGps && (
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                            )}
+                        </div>
+                        <div className="text-sm text-slate-300 select-none">
+                            사진의 위치 정보(GPS) 수집에 동의합니다 <span className="text-slate-500 text-xs">(선택)</span>
+                        </div>
                     </div>
 
                     {error && (
