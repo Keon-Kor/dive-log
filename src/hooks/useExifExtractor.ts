@@ -37,13 +37,21 @@ export function useExifExtractor(): UseExifExtractorReturn {
 
     const extractExif = async (file: File): Promise<ExifResult> => {
         try {
-            console.log('Extracting EXIF from:', file.name, file.type);
+            console.log('Extracting EXIF from:', file.name, file.type, file.size);
 
-            // Parse EXIF data - use full file for better compatibility
-            const exif = await exifr.parse(file, {
+            // Read file as ArrayBuffer for better format detection
+            const arrayBuffer = await file.arrayBuffer();
+            console.log('File read as ArrayBuffer, size:', arrayBuffer.byteLength);
+
+            // Parse EXIF data - pass ArrayBuffer for better compatibility
+            const exif = await exifr.parse(arrayBuffer, {
                 tiff: true,
                 exif: true,
                 gps: true,
+                icc: false,
+                iptc: false,
+                xmp: false,
+                jfif: false,
             });
 
             console.log('EXIF result:', exif);
@@ -62,7 +70,7 @@ export function useExifExtractor(): UseExifExtractorReturn {
             let gpsLng: number | null = null;
 
             try {
-                const gps = await exifr.gps(file);
+                const gps = await exifr.gps(arrayBuffer);
                 console.log('GPS result:', gps);
                 if (gps) {
                     gpsLat = gps.latitude;
