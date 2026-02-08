@@ -619,8 +619,9 @@ export default function NewLogPage() {
                         {/* Conditions */}
                         <section className="logbook-section">
                             <h2 className="section-title">{t('logNew.sectionConditions')}</h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 <div>
+                                    <label className="field-label">{t('logNew.weather')}</label>
                                     <select
                                         value={commonData.weather}
                                         onChange={e => setCommonData({ ...commonData, weather: e.target.value as WeatherIcon })}
@@ -675,8 +676,6 @@ export default function NewLogPage() {
                                         <option value="shore">{t('logNew.entryShore')}</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                                 <div>
                                     <label className="field-label">{t('logNew.wave')}</label>
                                     <select
