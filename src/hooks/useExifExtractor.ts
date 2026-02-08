@@ -1,5 +1,5 @@
 // useExifExtractor Hook
-// Direct EXIF extraction with native HEIC support via exifr
+// Robust EXIF extraction: Tries native HEIC parsing first, then falls back to conversion
 
 'use client';
 
@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import exifr from 'exifr';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.0.7';
+export const APP_VERSION = 'v1.0.8';
 
 export interface ExifData {
     dateTaken: string | null;
@@ -33,86 +33,123 @@ interface UseExifExtractorReturn {
     error: string | null;
 }
 
+// Helper to check if file is HEIC
+const isHeicFile = (file: File): boolean => {
+    const fileName = file.name.toLowerCase();
+    return fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+};
+
 export function useExifExtractor(): UseExifExtractorReturn {
     const [isExtracting, setIsExtracting] = useState(false);
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
-    const extractExif = async (file: File): Promise<ExifResult> => {
-        try {
-            console.log(`[${APP_VERSION}] Extracting EXIF from:`, file.name, file.type, file.size);
+    // Helper to process EXIF data into our format
+    const processExif = (exif: any, fileName: string): ExifResult => {
+        // Extract GPS coordinates
+        let gpsLat: number | null = null;
+        let gpsLng: number | null = null;
 
+        if (exif.latitude && exif.longitude) {
+            gpsLat = exif.latitude;
+            gpsLng = exif.longitude;
+        }
+
+        // Get date
+        let dateTaken: string | null = null;
+        const dateValue = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
+        if (dateValue) {
+            try {
+                dateTaken = new Date(dateValue).toISOString();
+            } catch {
+                console.log('Date parsing failed for:', dateValue);
+            }
+        }
+
+        const data: ExifData = {
+            dateTaken,
+            gpsLat,
+            gpsLng,
+            camera: exif.Model || null,
+            lens: exif.LensModel || null,
+            make: exif.Make || null,
+            model: exif.Model || null,
+        };
+
+        return {
+            success: true,
+            data,
+            error: null,
+            fileName,
+        };
+    };
+
+    const extractExif = async (file: File): Promise<ExifResult> => {
+        const fileType = file.type || 'unknown';
+        console.log(`[${APP_VERSION}] Extracting EXIF from: ${file.name} (${fileType}, ${file.size} bytes)`);
+
+        // 1. Try native HEIC parsing first (fastest)
+        try {
             // Read file as ArrayBuffer - exifr natively supports HEIC
             const arrayBuffer = await file.arrayBuffer();
-            console.log('File read as ArrayBuffer, size:', arrayBuffer.byteLength);
+            console.log('Read as ArrayBuffer. Attempting native parsing...');
 
-            // Parse EXIF data - exifr has native HEIC/HEIF support
-            const exif = await exifr.parse(arrayBuffer);
+            const exif = await exifr.parse(arrayBuffer, {
+                tiff: true,
+                exif: true,
+                gps: true,
+                // Add HEIC specific options just in case, though usually auto-detected
+            });
 
-            console.log('EXIF result:', exif);
+            if (exif) {
+                console.log('Native parsing successful:', exif);
+                return processExif(exif, file.name);
+            }
+        } catch (nativeError) {
+            console.warn('Native parsing failed or empty:', nativeError);
+        }
 
-            if (!exif) {
+        // 2. If native parsing failed AND it is a HEIC file, try converting to JPEG
+        // This is a fallback for when exifr's native parser fails on specific HEIC encodings
+        if (isHeicFile(file)) {
+            try {
+                console.log('Attempting fallback: HEIC to JPEG conversion...');
+                // Dynamic import heic2any
+                const heic2any = (await import('heic2any')).default;
+
+                const result = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.5, // We only need metadata, speed is priority
+                });
+
+                const jpegBlob = Array.isArray(result) ? result[0] : result;
+                console.log('Conversion successful. Parsing converted JPEG...');
+
+                const arrayBuffer = await jpegBlob.arrayBuffer();
+                const exif = await exifr.parse(arrayBuffer);
+
+                if (exif) {
+                    console.log('JPEG parsing successful');
+                    return processExif(exif, file.name);
+                }
+            } catch (conversionError) {
+                console.error('Fallback conversion failed:', conversionError);
                 return {
                     success: false,
                     data: null,
-                    error: 'No EXIF data found',
+                    error: 'HEIC 파일 형식을 읽을 수 없습니다. JPEG로 변환하여 업로드해주세요.',
                     fileName: file.name,
                 };
             }
-
-            // Extract GPS coordinates
-            let gpsLat: number | null = null;
-            let gpsLng: number | null = null;
-
-            try {
-                const gps = await exifr.gps(arrayBuffer);
-                console.log('GPS result:', gps);
-                if (gps) {
-                    gpsLat = gps.latitude;
-                    gpsLng = gps.longitude;
-                }
-            } catch (gpsError) {
-                console.log('GPS extraction failed:', gpsError);
-            }
-
-            // Get date
-            let dateTaken: string | null = null;
-            const dateValue = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
-            if (dateValue) {
-                try {
-                    dateTaken = new Date(dateValue).toISOString();
-                } catch {
-                    console.log('Date parsing failed for:', dateValue);
-                }
-            }
-
-            const data: ExifData = {
-                dateTaken,
-                gpsLat,
-                gpsLng,
-                camera: exif.Model || null,
-                lens: exif.LensModel || null,
-                make: exif.Make || null,
-                model: exif.Model || null,
-            };
-
-            console.log('Extracted data:', data);
-
-            return {
-                success: true,
-                data,
-                error: null,
-                fileName: file.name,
-            };
-        } catch (err) {
-            console.error('EXIF extraction error:', err);
-            return {
-                success: false,
-                data: null,
-                error: err instanceof Error ? err.message : 'Unknown error',
-                fileName: file.name,
-            };
         }
+
+        return {
+            success: false,
+            data: null,
+            error: '메타데이터를 찾을 수 없습니다',
+            fileName: file.name,
+        };
     };
 
     const extractFromFiles = useCallback(async (files: File[]): Promise<ExifResult[]> => {
