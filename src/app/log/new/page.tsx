@@ -399,7 +399,7 @@ export default function NewLogPage() {
                         <section className="logbook-section">
                             <h2 className="section-title">{t('logNew.sectionSite')}</h2>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="col-span-2">
+                                <div className="sm:col-span-2">
                                     <label className="field-label">{t('logNew.siteName')}</label>
                                     <input
                                         type="text"
