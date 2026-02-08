@@ -6,7 +6,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useExifExtractor } from '@/hooks/useExifExtractor';
 import type { ExifResult } from '@/workers/exif-worker';
-import heic2any from 'heic2any'; // Support for HEIC previews
 
 interface PhotoUploaderProps {
     onPhotosProcessed: (results: ExifResult[], files: File[], savePhotos: boolean) => void;
@@ -49,6 +48,10 @@ export function PhotoUploader({
 
             if (isHeic) {
                 try {
+                    // Dynamically import heic2any to avoid SSR issues
+                    const heic2anyModule = await import('heic2any');
+                    const heic2any = heic2anyModule.default;
+
                     // Convert HEIC to JPEG blob for preview
                     const result = await heic2any({
                         blob: file,
