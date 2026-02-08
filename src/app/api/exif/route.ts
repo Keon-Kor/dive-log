@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import exifr from 'exifr';
+// Import FULL bundle for HEIC support in Node.js (default might be Lite)
+import exifr from 'exifr/dist/full.esm.mjs';
 
 export async function POST(request: NextRequest) {
     try {
