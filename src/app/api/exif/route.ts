@@ -2,48 +2,80 @@ import { NextRequest, NextResponse } from 'next/server';
 import sharp from 'sharp';
 import exifr from 'exifr';
 
-// Force Node.js runtime (Vercel default is usually nodejs for APIs, but good to be explicit for Sharp)
 export const runtime = 'nodejs';
-// Increase body size limit if needed (Next.js default is 4MB, sufficient for photos? check config)
-// export const config = { api: { bodyParser: false } }; // We use formData(), so let Next handle it.
 
 export async function POST(request: NextRequest) {
+    console.log('[API Start] /api/exif POST received');
     try {
-        const formData = await request.formData();
-        const file = formData.get('file') as File;
-
-        if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+        // 1. Check FormData parsing
+        let formData;
+        try {
+            formData = await request.formData();
+        } catch (e: any) {
+            console.error('[API Error] FormData parsing failed:', e);
+            throw new Error(`FormData parsing failed: ${e.message}`);
         }
 
-        console.log(`[API v1.3.1] Extracting EXIF from: ${file.name} (${file.type}, ${file.size} bytes)`);
+        const file = formData.get('file') as File;
+        if (!file) throw new Error('No file provided in form data');
 
-        // Convert File to ArrayBuffer
+        console.log(`[API] File received: ${file.name} (${file.type}, ${file.size} bytes)`);
+
+        // 2. Buffer creation
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        console.log(`[API] Buffer created: ${buffer.length} bytes`);
 
-        // STRATEGY: Use Sharp to read metadata ONLY (Lightweight).
-        // Sharp uses libvips which parses HEIC/Exif efficiently without full image decoding.
-        const metadata = await sharp(buffer).metadata();
+        // 3. Sharp Metadata Extraction
+        console.log('[API] Calling sharp(buffer).metadata()...');
+        let metadata;
+        try {
+            metadata = await sharp(buffer).metadata();
+        } catch (e: any) {
+            console.error('[API Error] Sharp metadata extraction failed:', e);
+            // Specific handling for unsupported format
+            if (e.message.includes('heif') || e.message.includes('heic') || e.message.includes('unsupported')) {
+                console.error('[API Critical] HEIC format might not be supported in this environment');
+                return NextResponse.json({ error: 'heic_not_supported', details: e.message }, { status: 500 });
+            }
+            throw e;
+        }
+
+        console.log('[API] Sharp metadata success:', {
+            format: metadata.format,
+            size: metadata.size,
+            hasExif: !!metadata.exif
+        });
 
         if (!metadata.exif) {
-            console.log('Sharp found no EXIF buffer');
+            console.warn('[API Warning] No EXIF buffer found in image');
             return NextResponse.json({ error: 'No EXIF data found' }, { status: 404 });
         }
 
-        // Parse the EXIF buffer using exifr
-        // exifr can parse raw EXIF buffers (TIFF segment)
-        const exif = await exifr.parse(metadata.exif, {
+        console.log(`[API] EXIF buffer found: ${metadata.exif.length} bytes`);
+
+        let exifBuffer = metadata.exif;
+        // Sharp returns EXIF with 'Exif\0\0' header (6 bytes). We need to strip it for exifr/tiff parsers.
+        if (exifBuffer.toString('ascii', 0, 6) === 'Exif\0\0') {
+            console.log('[API] Stripping "Exif\\0\\0" header from buffer...');
+            exifBuffer = exifBuffer.subarray(6);
+        }
+
+        // 4. Exifr Parsing
+        // We MUST specify tiff: true because we are passing a raw EXIF buffer (TIFF structure), not a file with headers.
+        console.log('[API] Parsing EXIF buffer with exifr (TIFF mode)...');
+        const exif = await exifr.parse(exifBuffer, {
             tiff: true,
             exif: true,
             gps: true,
         });
+        console.log('[API] exifr parse result:', exif ? 'Success' : 'Null');
 
         if (!exif) {
             return NextResponse.json({ error: 'Failed to parse EXIF buffer' }, { status: 404 });
         }
 
-        // Extract GPS coordinates
+        // 5. Data Extraction
         let gpsLat: number | null = null;
         let gpsLng: number | null = null;
 
@@ -52,7 +84,6 @@ export async function POST(request: NextRequest) {
             gpsLng = exif.longitude;
         }
 
-        // Get date
         let dateTaken: string | null = null;
         const dateValue = exif.DateTimeOriginal || exif.CreateDate || exif.ModifyDate;
         if (dateValue) {
@@ -73,12 +104,13 @@ export async function POST(request: NextRequest) {
             model: exif.Model || null,
         };
 
+        console.log('[API Success] Returning data');
         return NextResponse.json({ success: true, data });
 
-    } catch (error) {
-        console.error('Server-side EXIF extraction error:', error);
+    } catch (error: any) {
+        console.error('[API Critical Error] Stack:', error.stack);
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Server error' },
+            { error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
             { status: 500 }
         );
     }
