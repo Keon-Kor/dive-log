@@ -1,5 +1,5 @@
 // useExifExtractor Hook
-// Direct EXIF extraction with HEIC conversion support
+// Direct EXIF extraction with native HEIC support via exifr
 
 'use client';
 
@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import exifr from 'exifr';
 
 // App version for deployment verification
-export const APP_VERSION = 'v1.0.6';
+export const APP_VERSION = 'v1.0.7';
 
 export interface ExifData {
     dateTaken: string | null;
@@ -33,27 +33,6 @@ interface UseExifExtractorReturn {
     error: string | null;
 }
 
-// Check if file is HEIC/HEIF
-const isHeicFile = (file: File): boolean => {
-    const fileName = file.name.toLowerCase();
-    return fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
-};
-
-// Convert HEIC to JPEG using heic2any
-const convertHeicToJpeg = async (file: File): Promise<Blob> => {
-    console.log('Converting HEIC to JPEG...');
-    const heic2any = (await import('heic2any')).default;
-    const result = await heic2any({
-        blob: file,
-        toType: 'image/jpeg',
-        quality: 0.9,
-    });
-    // heic2any can return a Blob or an array of Blobs
-    const jpegBlob = Array.isArray(result) ? result[0] : result;
-    console.log('HEIC converted to JPEG, size:', jpegBlob.size);
-    return jpegBlob;
-};
-
 export function useExifExtractor(): UseExifExtractorReturn {
     const [isExtracting, setIsExtracting] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -63,33 +42,12 @@ export function useExifExtractor(): UseExifExtractorReturn {
         try {
             console.log(`[${APP_VERSION}] Extracting EXIF from:`, file.name, file.type, file.size);
 
-            let fileToProcess: Blob = file;
-
-            // Convert HEIC to JPEG if needed
-            if (isHeicFile(file)) {
-                try {
-                    fileToProcess = await convertHeicToJpeg(file);
-                } catch (conversionError) {
-                    console.error('HEIC conversion failed:', conversionError);
-                    return {
-                        success: false,
-                        data: null,
-                        error: 'HEIC 변환 실패. JPEG로 변환 후 업로드해주세요.',
-                        fileName: file.name,
-                    };
-                }
-            }
-
-            // Read file as ArrayBuffer
-            const arrayBuffer = await fileToProcess.arrayBuffer();
+            // Read file as ArrayBuffer - exifr natively supports HEIC
+            const arrayBuffer = await file.arrayBuffer();
             console.log('File read as ArrayBuffer, size:', arrayBuffer.byteLength);
 
-            // Parse EXIF data
-            const exif = await exifr.parse(arrayBuffer, {
-                tiff: true,
-                exif: true,
-                gps: true,
-            });
+            // Parse EXIF data - exifr has native HEIC/HEIF support
+            const exif = await exifr.parse(arrayBuffer);
 
             console.log('EXIF result:', exif);
 
