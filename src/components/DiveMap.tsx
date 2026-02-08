@@ -10,145 +10,145 @@ import { DiveLog } from '@/lib/types';
 
 // Fix for default marker icons in Next.js
 const defaultIcon = L.icon({
-    iconUrl: '/marker-icon.png',
-    iconRetinaUrl: '/marker-icon-2x.png',
-    shadowUrl: '/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
+  iconUrl: '/marker-icon.png',
+  iconRetinaUrl: '/marker-icon-2x.png',
+  shadowUrl: '/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
 });
 
 const diveIcon = L.divIcon({
-    html: `
+  html: `
     <div class="dive-marker">
       <div class="marker-pulse"></div>
       <div class="marker-dot"></div>
     </div>
   `,
-    className: 'custom-dive-marker',
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+  className: 'custom-dive-marker',
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
 });
 
 interface DiveMapProps {
-    logs: DiveLog[];
-    center?: [number, number];
-    zoom?: number;
-    onMarkerClick?: (log: DiveLog) => void;
-    height?: string;
+  logs: DiveLog[];
+  center?: [number, number];
+  zoom?: number;
+  onMarkerClick?: (log: DiveLog) => void;
+  height?: string;
 }
 
 export function DiveMap({
-    logs,
-    center = [33.5, 126.5], // Default: Jeju Island
-    zoom = 6,
-    onMarkerClick,
-    height = '400px'
+  logs,
+  center = [33.5, 126.5], // Default: Jeju Island
+  zoom = 6,
+  onMarkerClick,
+  height = '400px'
 }: DiveMapProps) {
-    const mapRef = useRef<L.Map | null>(null);
-    const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!mapContainerRef.current || mapRef.current) return;
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
 
-        // Initialize map
-        const map = L.map(mapContainerRef.current, {
-            center,
-            zoom,
-            zoomControl: false,
+    // Initialize map
+    const map = L.map(mapContainerRef.current, {
+      center,
+      zoom,
+      zoomControl: false,
+    });
+
+    // Add zoom control to top-right
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // Add dark theme tile layer
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [center, zoom]);
+
+  // Add/update markers when logs change
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const map = mapRef.current;
+
+    // Clear existing markers
+    map.eachLayer((layer) => {
+      if (layer instanceof L.Marker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    // Add markers for each log
+    logs.forEach((log) => {
+      if (log.gpsLat && log.gpsLng) {
+        const marker = L.marker([log.gpsLat, log.gpsLng], {
+          icon: diveIcon
         });
 
-        // Add zoom control to top-right
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        // Create popup content using DOM API to prevent XSS
+        const popupEl = document.createElement('div');
+        popupEl.className = 'dive-popup';
 
-        // Add dark theme tile layer
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            maxZoom: 19,
-        }).addTo(map);
+        const h4 = document.createElement('h4');
+        h4.className = 'font-semibold';
+        h4.textContent = log.diveSiteName || 'Unknown Location';
+        popupEl.appendChild(h4);
 
-        mapRef.current = map;
+        const pDate = document.createElement('p');
+        pDate.className = 'text-sm text-slate-400';
+        pDate.textContent = log.date;
+        popupEl.appendChild(pDate);
 
-        return () => {
-            map.remove();
-            mapRef.current = null;
-        };
-    }, [center, zoom]);
-
-    // Add/update markers when logs change
-    useEffect(() => {
-        if (!mapRef.current) return;
-
-        const map = mapRef.current;
-
-        // Clear existing markers
-        map.eachLayer((layer) => {
-            if (layer instanceof L.Marker) {
-                map.removeLayer(layer);
-            }
-        });
-
-        // Add markers for each log
-        logs.forEach((log) => {
-            if (log.gpsLat && log.gpsLng) {
-                const marker = L.marker([log.gpsLat, log.gpsLng], {
-                    icon: diveIcon
-                });
-
-                // Create popup content using DOM API to prevent XSS
-                const popupEl = document.createElement('div');
-                popupEl.className = 'dive-popup';
-
-                const h4 = document.createElement('h4');
-                h4.className = 'font-semibold';
-                h4.textContent = log.locationName || 'Unknown Location';
-                popupEl.appendChild(h4);
-
-                const pDate = document.createElement('p');
-                pDate.className = 'text-sm text-slate-400';
-                pDate.textContent = log.date;
-                popupEl.appendChild(pDate);
-
-                if (log.maxDepth) {
-                    const pDepth = document.createElement('p');
-                    pDepth.className = 'text-sm';
-                    pDepth.textContent = `최대 수심: ${log.maxDepth}m`;
-                    popupEl.appendChild(pDepth);
-                }
-
-                marker.bindPopup(popupEl);
-
-                if (onMarkerClick) {
-                    marker.on('click', () => onMarkerClick(log));
-                }
-
-                marker.addTo(map);
-            }
-        });
-
-        // If we have logs, fit bounds to show all markers
-        if (logs.length > 0) {
-            const validLogs = logs.filter(log => log.gpsLat && log.gpsLng);
-            if (validLogs.length > 0) {
-                const bounds = L.latLngBounds(
-                    validLogs.map(log => [log.gpsLat, log.gpsLng] as [number, number])
-                );
-                map.fitBounds(bounds, { padding: [50, 50] });
-            }
+        if (log.maxDepth) {
+          const pDepth = document.createElement('p');
+          pDepth.className = 'text-sm';
+          pDepth.textContent = `최대 수심: ${log.maxDepth}m`;
+          popupEl.appendChild(pDepth);
         }
-    }, [logs, onMarkerClick]);
 
-    return (
-        <div className="relative rounded-2xl overflow-hidden border border-slate-700">
-            <div
-                ref={mapContainerRef}
-                style={{ height }}
-                className="w-full"
-            />
+        marker.bindPopup(popupEl);
 
-            {/* Custom marker styles */}
-            <style jsx global>{`
+        if (onMarkerClick) {
+          marker.on('click', () => onMarkerClick(log));
+        }
+
+        marker.addTo(map);
+      }
+    });
+
+    // If we have logs, fit bounds to show all markers
+    if (logs.length > 0) {
+      const validLogs = logs.filter(log => log.gpsLat && log.gpsLng);
+      if (validLogs.length > 0) {
+        const bounds = L.latLngBounds(
+          validLogs.map(log => [log.gpsLat, log.gpsLng] as [number, number])
+        );
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    }
+  }, [logs, onMarkerClick]);
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden border border-slate-700">
+      <div
+        ref={mapContainerRef}
+        style={{ height }}
+        className="w-full"
+      />
+
+      {/* Custom marker styles */}
+      <style jsx global>{`
         .custom-dive-marker {
           background: transparent !important;
           border: none !important;
@@ -215,6 +215,6 @@ export function DiveMap({
           margin: 2px 0;
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

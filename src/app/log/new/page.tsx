@@ -1,5 +1,5 @@
-// New Dive Log Page
-// 3-step flow: Upload photos → Review auto-filled data → Save
+// New Dive Log Page - Redesigned with Logbook Form
+// 3-step flow: Upload photos (EXIF extraction) → Auto-fill logbook → Save
 
 'use client';
 
@@ -7,28 +7,56 @@ import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PhotoUploader } from '@/components/PhotoUploader';
-import { DiveLogForm } from '@/components/DiveLogForm';
+import { LogbookForm } from '@/components/LogbookForm';
 import { useDiveLog } from '@/hooks/useDiveLog';
 import type { ExifResult } from '@/workers/exif-worker';
-import type { DiveLogFormData, DivePhoto } from '@/lib/types';
+import type { DiveLogFormData } from '@/lib/types';
 
-type Step = 'upload' | 'review' | 'complete';
+type Step = 'upload' | 'logbook' | 'complete';
 
 export default function NewLogPage() {
     const router = useRouter();
     const { createLog } = useDiveLog();
     const [step, setStep] = useState<Step>('upload');
-    const [exifResults, setExifResults] = useState<ExifResult[]>([]);
-    const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+    const [exifData, setExifData] = useState<Partial<DiveLogFormData>>({});
     const [isSaving, setIsSaving] = useState(false);
 
-    const handlePhotosProcessed = useCallback((results: ExifResult[], files: File[]) => {
-        setExifResults(results);
-        setUploadedFiles(files);
+    // TODO: Replace with actual auth check
+    const isLoggedIn = false;
 
-        // Move to review step if we have results
+    const handlePhotosProcessed = useCallback((results: ExifResult[], files: File[]) => {
+        // Extract data from EXIF - photos are NOT stored
         if (results.length > 0) {
-            setStep('review');
+            const firstResult = results[0];
+            const lastResult = results[results.length - 1];
+
+            // Calculate diving time from first and last photo
+            let divingTime = 0;
+            if (firstResult.data?.dateTaken && lastResult.data?.dateTaken) {
+                const start = new Date(firstResult.data.dateTaken);
+                const end = new Date(lastResult.data.dateTaken);
+                divingTime = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+            }
+
+            // Auto-fill form data from EXIF
+            setExifData({
+                date: firstResult.data?.dateTaken
+                    ? new Date(firstResult.data.dateTaken).toISOString().split('T')[0]
+                    : new Date().toISOString().split('T')[0],
+                timeStart: firstResult.data?.dateTaken
+                    ? new Date(firstResult.data.dateTaken).toTimeString().slice(0, 5)
+                    : '',
+                timeEnd: lastResult.data?.dateTaken
+                    ? new Date(lastResult.data.dateTaken).toTimeString().slice(0, 5)
+                    : '',
+                divingTime: divingTime > 0 ? divingTime : 45,
+                gpsLat: firstResult.data?.gpsLat ?? undefined,
+                gpsLng: firstResult.data?.gpsLng ?? undefined,
+                // TODO: GPS → Dive Site matching
+                diveSiteName: '',
+            });
+
+            setStep('logbook');
         }
     }, []);
 
@@ -36,47 +64,31 @@ export default function NewLogPage() {
         setIsSaving(true);
 
         try {
-            // Create photo objects from uploaded files
-            const photos: DivePhoto[] = uploadedFiles.map((file, index) => {
-                const exifData = exifResults[index]?.data;
-                return {
-                    id: `photo-${Date.now()}-${index}`,
-                    thumbnailUrl: URL.createObjectURL(file),
-                    exifData: {
-                        dateTaken: exifData?.dateTaken || new Date().toISOString(),
-                        gpsLat: exifData?.gpsLat || formData.gpsLat,
-                        gpsLng: exifData?.gpsLng || formData.gpsLng,
-                        camera: exifData?.camera || undefined,
-                        lens: exifData?.lens || undefined,
-                    },
-                };
-            });
-
-            // Create the dive log
-            const newLog = await createLog(formData, photos);
+            // Create the dive log (no photos stored by default)
+            const newLog = await createLog(formData, []);
 
             if (newLog) {
                 setStep('complete');
-                // Redirect to home after a short delay
-                setTimeout(() => {
-                    router.push('/');
-                }, 2000);
+                setTimeout(() => router.push('/'), 2000);
             }
         } catch (error) {
             console.error('Failed to create log:', error);
         } finally {
             setIsSaving(false);
         }
-    }, [uploadedFiles, exifResults, createLog, router]);
+    }, [createLog, router]);
 
     const handleBack = useCallback(() => {
         setStep('upload');
-        setExifResults([]);
-        setUploadedFiles([]);
+        setExifData({});
+    }, []);
+
+    const handleSkipPhotos = useCallback(() => {
+        setStep('logbook');
     }, []);
 
     return (
-        <div className="min-h-screen">
+        <div className="min-h-screen pb-8">
             {/* Header */}
             <header className="sticky top-0 z-50 glass">
                 <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
@@ -91,8 +103,8 @@ export default function NewLogPage() {
                     <div>
                         <h1 className="text-lg font-semibold text-white">새 다이빙 로그</h1>
                         <p className="text-xs text-slate-400">
-                            {step === 'upload' && '1단계: 사진 업로드'}
-                            {step === 'review' && '2단계: 정보 확인'}
+                            {step === 'upload' && '1단계: 사진에서 정보 추출'}
+                            {step === 'logbook' && '2단계: 로그북 작성'}
                             {step === 'complete' && '완료!'}
                         </p>
                     </div>
@@ -102,42 +114,67 @@ export default function NewLogPage() {
             {/* Progress Bar */}
             <div className="max-w-2xl mx-auto px-4 py-4">
                 <div className="flex gap-2">
-                    {['upload', 'review', 'complete'].map((s, i) => (
+                    {['upload', 'logbook', 'complete'].map((s, i) => (
                         <div
                             key={s}
-                            className={`h-1.5 flex-1 rounded-full transition-colors ${['upload', 'review', 'complete'].indexOf(step) >= i
-                                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500'
-                                    : 'bg-slate-700'
+                            className={`h-1.5 flex-1 rounded-full transition-colors ${['upload', 'logbook', 'complete'].indexOf(step) >= i
+                                ? 'bg-gradient-to-r from-cyan-500 to-blue-500'
+                                : 'bg-slate-700'
                                 }`}
                         />
                     ))}
                 </div>
             </div>
 
-            <main className="max-w-2xl mx-auto px-4 py-4">
-                {/* Step 1: Upload */}
+            <main className="max-w-2xl mx-auto px-4">
+                {/* Step 1: Photo Upload (for EXIF only) */}
                 {step === 'upload' && (
                     <div className="animate-fade-in space-y-6">
+                        {/* Privacy Notice */}
+                        <div className="card p-4 border-cyan-500/30">
+                            <div className="flex gap-3">
+                                <span className="text-2xl">🔒</span>
+                                <div>
+                                    <h3 className="font-medium text-white mb-1">프라이버시 우선</h3>
+                                    <p className="text-sm text-slate-400">
+                                        사진은 저장되지 않습니다. 날짜, 시간, 위치 정보만 추출한 후
+                                        사진은 즉시 폐기됩니다.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <PhotoUploader onPhotosProcessed={handlePhotosProcessed} />
 
+                        {/* Skip Photos Option */}
+                        <div className="text-center">
+                            <button
+                                onClick={handleSkipPhotos}
+                                className="text-sm text-slate-400 hover:text-white transition-colors underline"
+                            >
+                                사진 없이 직접 작성하기
+                            </button>
+                        </div>
+
                         <div className="card p-4">
-                            <h3 className="font-medium text-white mb-2">💡 팁</h3>
+                            <h3 className="font-medium text-white mb-2">💡 자동 추출 정보</h3>
                             <ul className="text-sm text-slate-400 space-y-1">
-                                <li>• GPS 정보가 있는 사진을 업로드하면 위치가 자동으로 입력됩니다</li>
-                                <li>• 여러 장의 사진을 업로드하면 다이빙 시간을 자동 계산합니다</li>
-                                <li>• HEIC 형식도 지원됩니다 (iPhone)</li>
+                                <li>• 다이빙 날짜 및 시간</li>
+                                <li>• GPS 위치 → 다이빙 사이트 자동 매칭</li>
+                                <li>• 여러 장 업로드 시 다이빙 시간 자동 계산</li>
                             </ul>
                         </div>
                     </div>
                 )}
 
-                {/* Step 2: Review */}
-                {step === 'review' && (
+                {/* Step 2: Logbook Form */}
+                {step === 'logbook' && (
                     <div className="animate-fade-in">
-                        <DiveLogForm
-                            exifResults={exifResults}
+                        <LogbookForm
+                            initialData={exifData}
                             onSubmit={handleSubmit}
-                            onBack={handleBack}
+                            onCancel={handleBack}
+                            isLoggedIn={isLoggedIn}
                         />
 
                         {isSaving && (
@@ -159,7 +196,7 @@ export default function NewLogPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">저장 완료!</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">로그 저장 완료!</h2>
                         <p className="text-slate-400 mb-6">다이빙 로그가 성공적으로 저장되었습니다</p>
                         <Link href="/" className="btn-primary inline-flex items-center gap-2">
                             홈으로 돌아가기

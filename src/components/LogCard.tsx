@@ -54,7 +54,7 @@ export function LogCard({ log, onClick }: LogCardProps) {
                 <div className="h-32 overflow-hidden relative">
                     <img
                         src={log.photos[0].thumbnailUrl}
-                        alt={log.locationName}
+                        alt={log.diveSiteName}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                     {log.photos.length > 1 && (
@@ -71,7 +71,7 @@ export function LogCard({ log, onClick }: LogCardProps) {
                 {/* Location & Date */}
                 <div>
                     <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors">
-                        {log.locationName || log.diveSiteName || 'Unknown Location'}
+                        {log.diveSiteName || 'Unknown Location'}
                     </h3>
                     <p className="text-sm text-slate-400 mt-0.5">
                         {formatDate(log.date)}
@@ -86,23 +86,22 @@ export function LogCard({ log, onClick }: LogCardProps) {
                             <span>{log.maxDepth}m</span>
                         </div>
                     )}
-                    {log.bottomTime && (
+                    {log.divingTime && (
                         <div className="flex items-center gap-1.5 text-slate-300">
                             <span className="text-cyan-400">⏱</span>
-                            <span>{log.bottomTime}분</span>
+                            <span>{log.divingTime}분</span>
                         </div>
                     )}
-                    {log.seaTemperature > 0 && (
+                    {log.tempAvg && log.tempAvg > 0 && (
                         <div className="flex items-center gap-1.5 text-slate-300">
                             <span className="text-cyan-400">🌊</span>
-                            <span>{Math.round(log.seaTemperature)}°C</span>
+                            <span>{Math.round(log.tempAvg)}°C</span>
                         </div>
                     )}
                 </div>
 
-                {/* Rating & Buddy */}
-                <div className="flex items-center justify-between">
-                    {renderRating(log.rating)}
+                {/* Buddy */}
+                <div className="flex items-center justify-end">
                     {log.buddy && (
                         <span className="text-xs text-slate-500">
                             with {log.buddy}

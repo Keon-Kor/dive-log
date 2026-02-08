@@ -51,18 +51,39 @@ body {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(6, 182, 212, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(6, 182, 212, 0.5); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 40px rgba(6, 182, 212, 0.5);
+  }
 }
 
 .animate-fade-in {
@@ -137,11 +158,15 @@ body {
 }
 
 /* Input Styles */
-input, textarea, select {
+input,
+textarea,
+select {
   transition: all 0.2s ease;
 }
 
-input:focus, textarea:focus, select:focus {
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
   ring: 2px;
   ring-color: #06b6d4;
@@ -169,4 +194,112 @@ input:focus, textarea:focus, select:focus {
 
 .leaflet-control-attribution a {
   color: #94a3b8 !important;
+}
+
+/* ====================================
+   Logbook Form Styles
+   ==================================== */
+
+.logbook-form {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.logbook-section {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+}
+
+.logbook-section:hover {
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+  letter-spacing: 0.05em;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field-input {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  color: #f8fafc;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+}
+
+.field-input::placeholder {
+  color: #475569;
+}
+
+.field-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .logbook-form {
+    max-width: 100%;
+  }
+
+  .logbook-section {
+    background: white !important;
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .section-title {
+    color: #333 !important;
+    border-bottom-color: #ccc !important;
+  }
+
+  .field-label {
+    color: #666 !important;
+  }
+
+  .field-input {
+    background: white !important;
+    border: 1px solid #999 !important;
+    color: black !important;
+  }
+
+  /* Hide non-printable elements */
+  button[type="submit"],
+  button[type="button"],
+  .no-print {
+    display: none !important;
+  }
 }
