@@ -96,16 +96,28 @@ export function DiveMap({
                     icon: diveIcon
                 });
 
-                // Create popup content
-                const popupContent = `
-          <div class="dive-popup">
-            <h4 class="font-semibold">${log.locationName || 'Unknown Location'}</h4>
-            <p class="text-sm text-slate-400">${log.date}</p>
-            ${log.maxDepth ? `<p class="text-sm">최대 수심: ${log.maxDepth}m</p>` : ''}
-          </div>
-        `;
+                // Create popup content using DOM API to prevent XSS
+                const popupEl = document.createElement('div');
+                popupEl.className = 'dive-popup';
 
-                marker.bindPopup(popupContent);
+                const h4 = document.createElement('h4');
+                h4.className = 'font-semibold';
+                h4.textContent = log.locationName || 'Unknown Location';
+                popupEl.appendChild(h4);
+
+                const pDate = document.createElement('p');
+                pDate.className = 'text-sm text-slate-400';
+                pDate.textContent = log.date;
+                popupEl.appendChild(pDate);
+
+                if (log.maxDepth) {
+                    const pDepth = document.createElement('p');
+                    pDepth.className = 'text-sm';
+                    pDepth.textContent = `최대 수심: ${log.maxDepth}m`;
+                    popupEl.appendChild(pDepth);
+                }
+
+                marker.bindPopup(popupEl);
 
                 if (onMarkerClick) {
                     marker.on('click', () => onMarkerClick(log));
